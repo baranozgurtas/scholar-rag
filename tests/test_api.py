@@ -84,12 +84,21 @@ def client(mock_app_state: AppState) -> TestClient:
 
 
 class TestRootAndDocs:
-    def test_root(self, client: TestClient) -> None:
+    def test_root_serves_ui(self, client: TestClient) -> None:
+        """Root path serves the static HTML frontend."""
         r = client.get("/")
+        assert r.status_code == 200
+        assert "text/html" in r.headers.get("content-type", "")
+        assert "<html" in r.text.lower()
+
+    def test_api_index_returns_metadata(self, client: TestClient) -> None:
+        """The /api endpoint returns service metadata as JSON."""
+        r = client.get("/api")
         assert r.status_code == 200
         body = r.json()
         assert body["service"]
         assert body["docs"] == "/docs"
+        assert body["ui"] == "/"
 
     def test_openapi_schema(self, client: TestClient) -> None:
         r = client.get("/openapi.json")
