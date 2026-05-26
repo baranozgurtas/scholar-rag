@@ -1,0 +1,478 @@
+{
+  "name": "D_hybrid_plus_rerank",
+  "description": "Hybrid + reranker (production)",
+  "metrics": {
+    "n": 25,
+    "hit_at_5": 0.95,
+    "hit_at_10": 0.95,
+    "mrr_at_10": 0.95,
+    "ndcg_at_10": 0.95,
+    "abstention_rate": 0.2,
+    "adversarial_abstention_rate": 1.0,
+    "n_adversarial": 5
+  },
+  "per_question": [
+    {
+      "question": "How does Adam's performance compare to SGD with momentum and Adagrad in the logistic regression experiment on the MNIST dataset, and what is the observed convergence behavior?",
+      "expected_sources": [
+        "adam-kingma-2014"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "adam-kingma-2014.pdf",
+        "adam-kingma-2014.pdf",
+        "adam-kingma-2014.pdf",
+        "adam-kingma-2014.pdf",
+        "adam-kingma-2014.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Adam: A Method for Stochastic Optimization | p.5 | \u00a7experiments]"
+      ],
+      "latency_ms": 7793.377161026001
+    },
+    {
+      "question": "How does the M3-Embedding model perform compared to BM25 on the MLDR dataset, and what does this suggest about BM25's competitiveness?",
+      "expected_sources": [
+        "bge-m3-chen-2024"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: M3-Embedding | p.16 | \u00a7methods]"
+      ],
+      "latency_ms": 7803.2896518707275
+    },
+    {
+      "question": "What are the evaluation metrics used for multi-lingual retrieval, and how many languages does MIRACL consist of?",
+      "expected_sources": [
+        "bge-m3-chen-2024"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf",
+        "bge-m3-chen-2024.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: M3-Embedding | p.6 | \u00a7experiments]"
+      ],
+      "latency_ms": 7189.755916595459
+    },
+    {
+      "question": "What are the two datasets used in the evaluation, and what do they contain?",
+      "expected_sources": [
+        "bpr-rendle-2009"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "xgboost-chen-2016.pdf",
+        "deepar-salinas-2017.pdf",
+        "ncf-he-2017.pdf",
+        "colbertv2-santhanam-2022.pdf",
+        "deepar-salinas-2017.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: DeepAR | p.2 | \u00a7related_work]"
+      ],
+      "latency_ms": 5584.165573120117
+    },
+    {
+      "question": "What challenge does the paper identify in using adaptive methods for valid statistical inference, and how did they address this issue in their study?",
+      "expected_sources": [
+        "causal-forest-wager-2018"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "causal-forest-wager-2018.pdf",
+        "causal-forest-wager-2018.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Effects using Random Forests | p.24 | \u00a7discussion]"
+      ],
+      "latency_ms": 5686.867713928223
+    },
+    {
+      "question": "What is the mean-squared error of causal forests when d increases from 2 to 30, and how does it compare to the performance of k-NN with k = 10 and k = 100? Provide specific values for each method at d=30.",
+      "expected_sources": [
+        "causal-forest-wager-2018"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "causal-forest-wager-2018.pdf",
+        "causal-forest-wager-2018.pdf",
+        "causal-forest-wager-2018.pdf",
+        "causal-forest-wager-2018.pdf",
+        "causal-forest-wager-2018.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Effects using Random Forests | p.21 | \u00a7results]"
+      ],
+      "latency_ms": 11038.267374038696
+    },
+    {
+      "question": "What metric does the paper use to evaluate retrieval quality, and how is it defined?",
+      "expected_sources": [
+        "colbertv2-santhanam-2022"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "colbertv2-santhanam-2022.pdf",
+        "bge-m3-chen-2024.pdf",
+        "colbertv2-santhanam-2022.pdf",
+        "colbertv2-santhanam-2022.pdf",
+        "lost-in-the-middle-2023.pdf"
+      ],
+      "abstained": false,
+      "citations": [],
+      "latency_ms": 5902.979612350464
+    },
+    {
+      "question": "What is the nominal miscoverage rate used in the experiments, and how many training-test splits are averaged for performance metrics?",
+      "expected_sources": [
+        "conformal-qr-romano-2019"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Conformalized Quantile Regression | p.8 | \u00a7experiments]"
+      ],
+      "latency_ms": 6320.759296417236
+    },
+    {
+      "question": "What is the impact of using two-tailed, asymmetric conformalization on the average interval length for CQR neural networks compared to symmetric conformalization?",
+      "expected_sources": [
+        "conformal-qr-romano-2019"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf",
+        "conformal-qr-romano-2019.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Conformalized Quantile Regression | p.10 | \u00a7methods]"
+      ],
+      "latency_ms": 5417.591094970703
+    },
+    {
+      "question": "What technique is used to prevent complex co-adaptations in feature detectors during training, and how does it work?",
+      "expected_sources": [
+        "dropout-srivastava-2014"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "dropout-srivastava-2014.pdf",
+        "dropout-srivastava-2014.pdf",
+        "adam-kingma-2014.pdf",
+        "dropout-srivastava-2014.pdf",
+        "dropout-srivastava-2014.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: co-adaptation of feature detectors | p.1 | \u00a7other]"
+      ],
+      "latency_ms": 6808.481454849243
+    },
+    {
+      "question": "What does the work suggest about how language models use long contexts, and what are some potential improvements mentioned for better context usage?",
+      "expected_sources": [
+        "lost-in-the-middle-2023"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Lost in the Middle: How Language Models Use Long Contexts | p.1 | \u00a7abstract]",
+        "[Paper: Lost in the Middle: How Language Models Use Long Contexts | p.10 | \u00a7related_work]"
+      ],
+      "latency_ms": 7019.444227218628
+    },
+    {
+      "question": "What performance trend is observed when the position of relevant information changes within the input context, and how does this affect models like GPT-3.5-Turbo's ability to use long contexts effectively?",
+      "expected_sources": [
+        "lost-in-the-middle-2023"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Lost in the Middle: How Language Models Use Long Contexts | p.1 | \u00a7abstract]"
+      ],
+      "latency_ms": 10614.767789840698
+    },
+    {
+      "question": "What argument does Levendowski [2018] make regarding the use of copyrighted material in machine learning, and how does it relate to addressing bias in datasets?",
+      "expected_sources": [
+        "ml-tips-domingos-2012"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: development and use in machine learning research | p.9 | \u00a7conclusion]"
+      ],
+      "latency_ms": 6511.5416049957275
+    },
+    {
+      "question": "What are the two reasons why a careful, critical review of datasets and practices is crucial in machine learning research according to the paper?",
+      "expected_sources": [
+        "ml-tips-domingos-2012"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf",
+        "ml-tips-domingos-2012.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: development and use in machine learning research | p.1 | \u00a7abstract]"
+      ],
+      "latency_ms": 7515.9406661987305
+    },
+    {
+      "question": "What is the performance improvement of N-BEATS over a statistical benchmark according to the paper's abstract?",
+      "expected_sources": [
+        "n-beats-oreshkin-2019"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf"
+      ],
+      "abstained": false,
+      "citations": [],
+      "latency_ms": 4211.020231246948
+    },
+    {
+      "question": "What are the two main categories of time series forecasting approaches discussed in the related work section, and which approach won the M4 competition with a hybrid model combining Holt-Winters style seasonality and what unique architectural features?",
+      "expected_sources": [
+        "n-beats-oreshkin-2019"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: INTERPRETABLE TIME SERIES FORECASTING | p.6 | \u00a7related_work]"
+      ],
+      "latency_ms": 6757.34543800354
+    },
+    {
+      "question": "What datasets are used for evaluating RAG models in open-domain question answering tasks, and what metric is reported for these datasets?",
+      "expected_sources": [
+        "rag-lewis-2020"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "rag-lewis-2020.pdf",
+        "rag-lewis-2020.pdf",
+        "ragas-es-2023.pdf",
+        "rag-lewis-2020.pdf",
+        "rag-lewis-2020.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Retrieval-Augmented Generation for | p.5 | \u00a7results]"
+      ],
+      "latency_ms": 6145.882129669189
+    },
+    {
+      "question": "What metric is used to evaluate the Jeopardy question generation task, and what makes it suitable for this task compared to standard metrics?",
+      "expected_sources": [
+        "rag-lewis-2020"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "rag-lewis-2020.pdf",
+        "rag-lewis-2020.pdf",
+        "rag-lewis-2020.pdf",
+        "rag-lewis-2020.pdf",
+        "rag-lewis-2020.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Retrieval-Augmented Generation for | p.5 | \u00a7results]"
+      ],
+      "latency_ms": 5877.497911453247
+    },
+    {
+      "question": "What are the three quality dimensions evaluated by Ragas, and how does it compare to the GPT Score and GPT Ranking baselines in terms of agreement with human annotators according to Table 1?",
+      "expected_sources": [
+        "ragas-es-2023"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "ragas-es-2023.pdf",
+        "ragas-es-2023.pdf",
+        "ragas-es-2023.pdf",
+        "ragas-es-2023.pdf",
+        "ragas-es-2023.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: Ragas: Automated Evaluation of Retrieval Augmented Generation | p.5 | \u00a7experiments]"
+      ],
+      "latency_ms": 9243.87526512146
+    },
+    {
+      "question": "What are the tasks associated with the Yahoo! LTRC dataset, and how many trees were used in the experiments comparing XGBoost methods?",
+      "expected_sources": [
+        "xgboost-chen-2016"
+      ],
+      "source_kind": "synthetic",
+      "retrieved_sources": [
+        "xgboost-chen-2016.pdf",
+        "xgboost-chen-2016.pdf",
+        "xgboost-chen-2016.pdf",
+        "xgboost-chen-2016.pdf",
+        "xgboost-chen-2016.pdf"
+      ],
+      "abstained": false,
+      "citations": [
+        "[Paper: XGBoost: A Scalable Tree Boosting System | p.8 | \u00a7methods]"
+      ],
+      "latency_ms": 7096.66109085083
+    },
+    {
+      "question": "What is the inference latency of Qwen2.5:14b on Apple M4 Pro for batched RAG queries?",
+      "expected_sources": [],
+      "source_kind": "adversarial",
+      "retrieved_sources": [
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "rag-lewis-2020.pdf"
+      ],
+      "abstained": true,
+      "citations": [],
+      "latency_ms": 5838.993549346924
+    },
+    {
+      "question": "How many parameters does Claude 3 Opus have, according to Anthropic's technical report?",
+      "expected_sources": [],
+      "source_kind": "adversarial",
+      "retrieved_sources": [
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "lost-in-the-middle-2023.pdf",
+        "lost-in-the-middle-2023.pdf"
+      ],
+      "abstained": true,
+      "citations": [
+        "[Paper: Lost in the Middle: How Language Models Use Long Contexts | p.1 | \u00a7abstract]"
+      ],
+      "latency_ms": 6246.475458145142
+    },
+    {
+      "question": "What was the F1 score of the SCIBERT model on the BLIRT-2024 benchmark?",
+      "expected_sources": [],
+      "source_kind": "adversarial",
+      "retrieved_sources": [
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "colbertv2-santhanam-2022.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "rag-lewis-2020.pdf"
+      ],
+      "abstained": true,
+      "citations": [
+        "[Paper: INTERPRETABLE TIME SERIES FORECASTING | p.10 | \u00a7conclusion]",
+        "[Paper: Retrieval-Augmented Generation for | p.10 | \u00a7references]"
+      ],
+      "latency_ms": 7110.4326248168945
+    },
+    {
+      "question": "Write Python code that implements FlashAttention-2 from scratch.",
+      "expected_sources": [],
+      "source_kind": "adversarial",
+      "retrieved_sources": [
+        "lost-in-the-middle-2023.pdf",
+        "colbertv2-santhanam-2022.pdf",
+        "colbertv2-santhanam-2022.pdf",
+        "colbertv2-santhanam-2022.pdf",
+        "lost-in-the-middle-2023.pdf"
+      ],
+      "abstained": true,
+      "citations": [],
+      "latency_ms": 4573.687314987183
+    },
+    {
+      "question": "Which restaurant in Zurich serves the best ramen?",
+      "expected_sources": [],
+      "source_kind": "adversarial",
+      "retrieved_sources": [
+        "n-beats-oreshkin-2019.pdf",
+        "n-beats-oreshkin-2019.pdf",
+        "rag-lewis-2020.pdf",
+        "bpr-rendle-2009.pdf",
+        "bpr-rendle-2009.pdf"
+      ],
+      "abstained": true,
+      "citations": [
+        "[Paper: INTERPRETABLE TIME SERIES FORECASTING | p.10 | \u00a7conclusion]",
+        "[Paper: Retrieval-Augmented Generation for | p.8 | \u00a7related_work]",
+        "[Paper: BPR: Bayesian Personalized Ranking from Implicit Feedback | p.9 | \u00a7conclusion]",
+        "[Paper: BPR: Bayesian Personalized Ranking from Implicit Feedback | p.1 | \u00a7abstract]"
+      ],
+      "latency_ms": 9164.437294006348
+    }
+  ]
+}

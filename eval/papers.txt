@@ -1,0 +1,26 @@
+# Eval corpus: 15 papers in 3 thematic clusters.
+# Format: <arxiv_id>  <short_alias>  <cluster>
+# Lines starting with # are ignored. Cluster names are free-form for grouping
+# in eval reports. The downloader fetches each by arxiv_id and saves it as
+# <short_alias>.pdf under data/pdfs/.
+
+# ─── Cluster A: RAG / Retrieval / LLMs ────────────────────────────
+2005.11401  rag-lewis-2020              rag_retrieval_llms
+2402.03216  bge-m3-chen-2024            rag_retrieval_llms
+2112.01488  colbertv2-santhanam-2022    rag_retrieval_llms
+2309.15217  ragas-es-2023               rag_retrieval_llms
+2307.03172  lost-in-the-middle-2023     rag_retrieval_llms
+
+# ─── Cluster B: Forecasting + Recommender Systems ─────────────────
+1905.10437  n-beats-oreshkin-2019       forecasting_recsys
+1905.03222  conformal-qr-romano-2019    forecasting_recsys
+1704.04110  deepar-salinas-2017         forecasting_recsys
+1205.2618   bpr-rendle-2009             forecasting_recsys
+1708.05031  ncf-he-2017                 forecasting_recsys
+
+# ─── Cluster C: Foundational ML / Stats / Causal ──────────────────
+1603.02754  xgboost-chen-2016           classical_ml
+1207.0580   dropout-srivastava-2014     classical_ml
+1412.6980   adam-kingma-2014            classical_ml
+1510.04342  causal-forest-wager-2018    classical_ml
+2012.05345  ml-tips-domingos-2012       classical_ml
