@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Development backups
+*.bak
+*.streamlit-bak
+*.before-*
+*.pre-*
+.DS_Store
+flex
+logs/
+qdrant_snapshot/
+eval_outputs.zip
+research-rag-colab.zip

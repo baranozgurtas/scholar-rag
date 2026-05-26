@@ -1,0 +1,29 @@
+Research RAG Assistant
+Copyright 2026 Baran Ozgurtas
+
+Licensed under the Apache License, Version 2.0. See LICENSE for full terms.
+
+This product includes software developed by third parties, used under their
+respective licenses:
+
+- BGE-M3 and BGE-reranker-v2-m3 models by the BAAI Foundation (MIT License)
+  https://huggingface.co/BAAI/bge-m3
+- Qwen2.5 model by Alibaba Cloud (Apache 2.0 / Qwen-specific terms)
+  https://huggingface.co/Qwen/Qwen2.5-14B-Instruct
+- Qdrant vector database (Apache 2.0)
+  https://github.com/qdrant/qdrant
+- LangChain (MIT License)
+  https://github.com/langchain-ai/langchain
+- RAGAS (Apache 2.0)
+  https://github.com/explodinggradients/ragas
+- Langfuse (MIT License)
+  https://github.com/langfuse/langfuse
+- Ollama (MIT License)
+  https://github.com/ollama/ollama
+- FastAPI (MIT License)
+  https://github.com/tiangolo/fastapi
+- structlog (Apache 2.0 / MIT dual)
+  https://github.com/hynek/structlog
+
+Academic papers indexed by the eval corpus belong to their respective authors
+and are downloaded from arXiv. See eval/papers.txt for the list of IDs.
