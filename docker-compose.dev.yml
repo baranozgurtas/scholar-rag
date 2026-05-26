@@ -1,0 +1,59 @@
+# Dev stack: ONLY Qdrant + Langfuse in Docker.
+# API + eval run on the host (Python venv) so changes are picked up via
+# `--reload` and PyTorch can use Apple Metal directly (MPS device).
+#
+# Bring up:    make services-up   (or: docker compose -f docker-compose.dev.yml up -d)
+# Run API:     make api           (uvicorn on host, port 8000)
+# Run UI:      make ui            (streamlit on host, port 8501)
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    container_name: rag-qdrant-dev
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage_dev:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "bash", "-c", ":> /dev/tcp/127.0.0.1/6333 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-db:
+    image: postgres:16-alpine
+    container_name: rag-langfuse-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_db_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: rag-langfuse-dev
+    restart: unless-stopped
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_SECRET: dev-secret-do-not-use-in-production
+      SALT: dev-salt-do-not-use-in-production
+      NEXTAUTH_URL: http://localhost:3001
+      TELEMETRY_ENABLED: "false"
+
+volumes:
+  qdrant_storage_dev:
+  langfuse_db_dev:
