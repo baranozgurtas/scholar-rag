@@ -79,37 +79,51 @@ An adversarial query (*"What is the best ramen restaurant in Zurich?"*) that has
 
 ## Architecture
 ```
-+-- Ingestion ----------------------------------------------------------+
-|                                                                      |
-|  15 arXiv PDFs                                                       |
-|       \__> Section-aware chunker                                     |
-|                  \__> BGE-M3 (dense + sparse, one forward pass)      |
-|                            \__> Qdrant (named vectors)               |
-|                                                                      |
-+----------------------------------------------------------------------+
-                                  |
-                                  v
-+-- Query -------------------------------------------------------------+
-|                                                                     |
-|  User query                                                         |
-|     |__> Dense retrieval ----+                                      |
-|     \__> Sparse retrieval ---+--> RRF fusion (k=60)                 |
-|                                       |                             |
-|                                       v                             |
-|                              Cross-encoder rerank (v2-m3)           |
-|                                       |                             |
-|                                       v                             |
-|                              Top-k context + paper/page/section     |
-|                                       |                             |
-|                                       v                             |
-|                              Qwen2.5:7b via Ollama                  |
-|                                       |                             |
-|                                       v                             |
-|                              Citation checker (substring match)     |
-|                                  |__ valid       --> Final answer   |
-|                                  \__ fabricated  --> Abstain        |
-|                                                                     |
-+---------------------------------------------------------------------+
++-- INGESTION ---------------------------------------------------+
+|                                                                |
+|   15 arXiv PDFs                                                |
+|         |                                                      |
+|         v                                                      |
+|   Section-aware chunker                                        |
+|         |                                                      |
+|         v                                                      |
+|   BGE-M3 (dense + sparse, one forward pass)                    |
+|         |                                                      |
+|         v                                                      |
+|   Qdrant (named vectors)                                       |
+|                                                                |
++----------------------------------------------------------------+
+                            |
+                            v
++-- QUERY -------------------------------------------------------+
+|                                                                |
+|              User query                                        |
+|             /         \                                        |
+|            v           v                                       |
+|       Dense          Sparse                                    |
+|            \         /                                         |
+|             v       v                                          |
+|         RRF fusion (k=60)                                      |
+|                |                                               |
+|                v                                               |
+|     Cross-encoder rerank (v2-m3)                               |
+|                |                                               |
+|                v                                               |
+|    Top-k context + paper/page/section                          |
+|                |                                               |
+|                v                                               |
+|         Qwen2.5:7b via Ollama                                  |
+|                |                                               |
+|                v                                               |
+|     Citation checker (substring match)                         |
+|             /         \                                        |
+|            v           v                                       |
+|        valid      fabricated                                   |
+|          |             |                                       |
+|          v             v                                       |
+|    Final answer    Abstain                                     |
+|                                                                |
++----------------------------------------------------------------+
 
 ```
 
