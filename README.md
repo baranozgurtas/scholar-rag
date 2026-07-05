@@ -346,4 +346,4 @@ The suite covers:
 
 ## Repository
 
-[github.com/baranozgurtas/research-rag-assistant](https://github.com/baranozgurtas/research-rag-assistant)
+https://github.com/baranozgurtas/scholar-rag
