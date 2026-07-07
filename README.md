@@ -8,7 +8,7 @@
 [![Tests](https://img.shields.io/badge/tests-51%2F51%20passing-success.svg)](#testing)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 
----
+--- 
 
 ## Why this project exists
 
