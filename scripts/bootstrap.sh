@@ -3,7 +3,7 @@
 # Idempotent — safe to re-run.
 set -euo pipefail
 
-echo "==> Research RAG Assistant bootstrap"
+echo "==> Scholar RAG bootstrap"
 echo
 
 # ─── 1. Check prerequisites ──────────────────────────────────────

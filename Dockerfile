@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────
-# Research RAG Assistant — production image
+# Scholar RAG — production image
 #
 # Multi-stage build:
 #   1. `builder`  installs deps into a venv

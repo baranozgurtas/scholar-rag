@@ -155,7 +155,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = Field(default="research-rag-assistant", alias="APP_NAME")
+    app_name: str = Field(default="scholar-rag", alias="APP_NAME")
     app_version: str = Field(default="1.0.0", alias="APP_VERSION")
     random_seed: int = Field(default=42, alias="RANDOM_SEED")
 

@@ -1,5 +1,5 @@
 const API_BASE = "";
-const STORAGE_KEY = "research_rag_recent";
+const STORAGE_KEY = "scholar_rag_recent";
 
 let currentResponse = null;
 let activeSourceIdx = 0;
@@ -54,7 +54,7 @@ function newSession() {
   document.getElementById("chat-inner").innerHTML = `
     <div class="welcome">
       <div class="welcome-mark"><i class="ti ti-book-2"></i></div>
-      <h1>Research RAG Assistant</h1>
+      <h1>Scholar RAG</h1>
       <p>Ask questions about the indexed academic papers. Every claim is grounded in a cited paper, page, and section.</p>
     </div>`;
   document.getElementById("chat-head").style.visibility = "hidden";

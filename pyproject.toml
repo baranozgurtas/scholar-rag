@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "research-rag-assistant"
+name = "scholar-rag"
 version = "1.0.0"
 description = "Production-grade RAG system for academic literature QA with hybrid retrieval and cross-encoder reranking."
 readme = "README.md"
@@ -35,8 +35,8 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/baranozgurtas/research-rag-assistant"
-Issues = "https://github.com/baranozgurtas/research-rag-assistant/issues"
+Repository = "https://github.com/baranozgurtas/scholar-rag"
+Issues = "https://github.com/baranozgurtas/scholar-rag/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

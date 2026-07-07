@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
     """App factory (lets tests build isolated app instances)."""
     settings = get_settings()
     app = FastAPI(
-        title="Research RAG Assistant",
+        title="Scholar RAG",
         description=(
             "Production-grade RAG system for academic literature QA with "
             "hybrid retrieval (BGE-M3 dense + sparse) and BGE cross-encoder "
