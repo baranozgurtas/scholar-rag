@@ -169,8 +169,8 @@ If the rerank scores are too low or the citation checker detects fabrication, th
 ### Setup
 
 ```bash
-git clone https://github.com/baranozgurtas/research-rag-assistant.git
-cd research-rag-assistant
+git clone https://github.com/baranozgurtas/scholar-rag.git
+cd scholar-rag
 
 # Python environment
 python3.11 -m venv .venv
@@ -276,7 +276,7 @@ The longer rationale lives in [`docs/design_decisions.md`](docs/design_decisions
 ## Project layout
 
 ```
-research-rag-assistant/
+scholar-rag/
 ├── src/rag/
 │   ├── ingestion/        # PDF loader, section-aware chunker, ingest pipeline
 │   ├── embeddings/       # BGE-M3 wrapper (dense + sparse in one call)
