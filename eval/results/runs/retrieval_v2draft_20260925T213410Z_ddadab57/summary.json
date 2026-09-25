@@ -1,0 +1,174 @@
+{
+  "A_dense_only": {
+    "counts": {
+      "n_records": 22,
+      "n_errors": 0,
+      "n_answerable": 15,
+      "n_unanswerable": 7,
+      "review_status": {
+        "unreviewed": 22
+      },
+      "splits": {
+        "dev": 10,
+        "heldout": 12
+      }
+    },
+    "retrieval": {
+      "n": 15,
+      "hit_at_5": 1.0,
+      "mrr_at_10": 1.0,
+      "ndcg_at_10": 0.97421,
+      "min_ranking_depth": 10,
+      "note": ""
+    },
+    "top_rerank_score": {
+      "answerable": {
+        "n": 0,
+        "min": null,
+        "p50": null,
+        "max": null
+      },
+      "unanswerable": {
+        "n": 0,
+        "min": null,
+        "p50": null,
+        "max": null
+      }
+    },
+    "latency": {
+      "n": 22,
+      "retrieval_plus_rerank_ms_p50": 268.034208,
+      "retrieval_plus_rerank_ms_p95": 674.293296
+    },
+    "failures": []
+  },
+  "B_dense_plus_rerank": {
+    "counts": {
+      "n_records": 22,
+      "n_errors": 0,
+      "n_answerable": 15,
+      "n_unanswerable": 7,
+      "review_status": {
+        "unreviewed": 22
+      },
+      "splits": {
+        "dev": 10,
+        "heldout": 12
+      }
+    },
+    "retrieval": {
+      "n": 15,
+      "hit_at_5": 1.0,
+      "mrr_at_10": 1.0,
+      "ndcg_at_10": 0.98877,
+      "min_ranking_depth": 10,
+      "note": ""
+    },
+    "top_rerank_score": {
+      "answerable": {
+        "n": 15,
+        "min": 0.41117,
+        "p50": 0.883638,
+        "max": 0.995702
+      },
+      "unanswerable": {
+        "n": 7,
+        "min": 0.124639,
+        "p50": 0.628179,
+        "max": 0.725162
+      }
+    },
+    "latency": {
+      "n": 22,
+      "retrieval_plus_rerank_ms_p50": 8610.676813,
+      "retrieval_plus_rerank_ms_p95": 14687.926456
+    },
+    "failures": []
+  },
+  "C_hybrid_no_rerank": {
+    "counts": {
+      "n_records": 22,
+      "n_errors": 0,
+      "n_answerable": 15,
+      "n_unanswerable": 7,
+      "review_status": {
+        "unreviewed": 22
+      },
+      "splits": {
+        "dev": 10,
+        "heldout": 12
+      }
+    },
+    "retrieval": {
+      "n": 15,
+      "hit_at_5": 1.0,
+      "mrr_at_10": 1.0,
+      "ndcg_at_10": 0.98877,
+      "min_ranking_depth": 10,
+      "note": ""
+    },
+    "top_rerank_score": {
+      "answerable": {
+        "n": 0,
+        "min": null,
+        "p50": null,
+        "max": null
+      },
+      "unanswerable": {
+        "n": 0,
+        "min": null,
+        "p50": null,
+        "max": null
+      }
+    },
+    "latency": {
+      "n": 22,
+      "retrieval_plus_rerank_ms_p50": 644.263396,
+      "retrieval_plus_rerank_ms_p95": 842.969818
+    },
+    "failures": []
+  },
+  "D_hybrid_plus_rerank": {
+    "counts": {
+      "n_records": 22,
+      "n_errors": 0,
+      "n_answerable": 15,
+      "n_unanswerable": 7,
+      "review_status": {
+        "unreviewed": 22
+      },
+      "splits": {
+        "dev": 10,
+        "heldout": 12
+      }
+    },
+    "retrieval": {
+      "n": 15,
+      "hit_at_5": 1.0,
+      "mrr_at_10": 1.0,
+      "ndcg_at_10": 0.986515,
+      "min_ranking_depth": 10,
+      "note": ""
+    },
+    "top_rerank_score": {
+      "answerable": {
+        "n": 15,
+        "min": 0.481911,
+        "p50": 0.883638,
+        "max": 0.995702
+      },
+      "unanswerable": {
+        "n": 7,
+        "min": 0.124639,
+        "p50": 0.635901,
+        "max": 0.725162
+      }
+    },
+    "latency": {
+      "n": 22,
+      "retrieval_plus_rerank_ms_p50": 7677.182875,
+      "retrieval_plus_rerank_ms_p95": 9508.263058
+    },
+    "failures": []
+  }
+}

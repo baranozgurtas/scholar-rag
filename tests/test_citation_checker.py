@@ -185,3 +185,68 @@ class TestAnswerPolicy:
         assert d.outcome == AnswerOutcome.GENERATION_ERROR
         assert d.released_answer == ABSTENTION_TEXT
         assert d.citations == []
+
+
+class TestParenthesizedCitations:
+    """`(Paper: … | p.N | §S)` is accepted only under the bracket-tag rules."""
+
+    RAG_TAG = "[Paper: Retrieval-Augmented Generation for | p.2 | §methods]"
+    # Verbatim shape of the qwen2.5:7b output for eval item D01.
+    D01_OUTPUT = (
+        "The parametric memory is a pre-trained seq2seq transformer and the non-parametric "
+        "memory is a dense vector index of Wikipedia (Paper: Retrieval-Augmented Generation "
+        "for | p.2 | §methods)."
+    )
+
+    def _apply(self, text: str, allowed: list[str] | None = None):
+        from rag.guards.citation_checker import apply_answer_policy
+
+        return apply_answer_policy(text, allowed if allowed is not None else [self.RAG_TAG])
+
+    def test_d01_parenthesized_tag_matching_context_is_released(self) -> None:
+        from rag.guards.citation_checker import AnswerOutcome
+
+        d = self._apply(self.D01_OUTPUT)
+        assert d.outcome == AnswerOutcome.ANSWERED
+        assert d.citations == [self.RAG_TAG]  # normalized to canonical form
+        assert d.citation_check.all_valid
+
+    def test_parenthesized_and_bracketed_same_tag_deduplicate(self) -> None:
+        text = f"A (Paper: Retrieval-Augmented Generation for | p.2 | §methods). B {self.RAG_TAG}."
+        assert self._apply(text).citations == [self.RAG_TAG]
+
+    def test_fabricated_parenthesized_tag_is_withheld(self) -> None:
+        from rag.guards.citation_checker import AnswerOutcome
+
+        d = self._apply("RAG uses BM25 (Paper: Retrieval-Augmented Generation for | p.9 | §methods).")
+        assert d.outcome == AnswerOutcome.INVALID_CITATION
+        d = self._apply("It was trained on C4 (Paper: Some Other Paper | p.2 | §methods).")
+        assert d.outcome == AnswerOutcome.INVALID_CITATION
+
+    def test_parenthesized_short_title_spoof_is_rejected(self) -> None:
+        from rag.guards.citation_checker import AnswerOutcome
+
+        d = self._apply("Claim (Paper: R | p.2 | §methods).")
+        assert d.outcome == AnswerOutcome.INVALID_CITATION
+
+    def test_loose_parenthetical_reference_is_not_a_citation(self) -> None:
+        from rag.guards.citation_checker import AnswerOutcome
+
+        for text in (
+            "RAG uses DPR (Paper: Retrieval-Augmented Generation for, p.2).",
+            "RAG uses DPR (Retrieval-Augmented Generation for | p.2 | §methods).",
+            "RAG uses DPR (see page 2).",
+        ):
+            assert self._apply(text).outcome == AnswerOutcome.UNCITED_ANSWER, text
+
+    def test_uncited_answer_still_withheld(self) -> None:
+        from rag.guards.citation_checker import AnswerOutcome
+
+        assert self._apply("RAG combines a retriever with a generator.").outcome == AnswerOutcome.UNCITED_ANSWER
+
+    def test_mixed_refusal_with_parenthesized_tag_is_withheld(self) -> None:
+        from rag.guards.citation_checker import ABSTENTION_TEXT, AnswerOutcome
+
+        d = self._apply(f"{ABSTENTION_TEXT} But it uses DPR (Paper: Retrieval-Augmented Generation for | p.2 | §methods).")
+        assert d.outcome == AnswerOutcome.MIXED_ABSTENTION
+        assert d.released_answer == ABSTENTION_TEXT

@@ -16,21 +16,21 @@ definitions. No model was re-run. Limitations:
 
 ## Retrieval (answerable questions)
 
-| Config | n | Hit@5 | MRR@10 | nDCG@10 | Note |
-|---|---|---|---|---|---|
-| `A_dense_only` | 20 | 0.950 | 0.925 | 0.932 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
-| `B_dense_plus_rerank` | 20 | 1.000 | 0.967 | 0.975 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
-| `C_hybrid_no_rerank` | 20 | 0.950 | 0.950 | 0.950 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
-| `D_hybrid_plus_rerank` | 20 | 0.950 | 0.950 | 0.950 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
+| Config | n | Hit@5 | All-sources@5 | Multi-paper n / All-sources@5 | MRR@10 | nDCG@10 | Note |
+|---|---|---|---|---|---|---|---|
+| `A_dense_only` | 20 | 0.950 | 0.950 | 0 / n/a | 0.925 | 0.932 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
+| `B_dense_plus_rerank` | 20 | 1.000 | 1.000 | 0 / n/a | 0.967 | 0.975 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
+| `C_hybrid_no_rerank` | 20 | 0.950 | 0.950 | 0 / n/a | 0.950 | 0.950 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
+| `D_hybrid_plus_rerank` | 20 | 0.950 | 0.950 | 0 / n/a | 0.950 | 0.950 | Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5. |
 
 ## Abstention
 
-| Config | False abstention (answerable) | False answer (unanswerable) | Errors |
-|---|---|---|---|
-| `A_dense_only` | 3/20 (15.0%; 95% CI 5%-36%) | 0/5 (0.0%; 95% CI 0%-43%) | 0 |
-| `B_dense_plus_rerank` | 1/20 (5.0%; 95% CI 1%-24%) | 0/5 (0.0%; 95% CI 0%-43%) | 0 |
-| `C_hybrid_no_rerank` | 3/20 (15.0%; 95% CI 5%-36%) | 0/5 (0.0%; 95% CI 0%-43%) | 0 |
-| `D_hybrid_plus_rerank` | 0/20 (0.0%; 95% CI 0%-16%) | 0/5 (0.0%; 95% CI 0%-43%) | 0 |
+| Config | False abstention (answerable) | False answer (unanswerable; pending review excluded) | False-premise items: abstained / human-labelled corrected / pending review / unsupported | Errors |
+|---|---|---|---|---|
+| `A_dense_only` | 3/20 (15.0%; 95% CI 5%-36%) | 0/5 (0.0%; 95% CI 0%-43%) | — | 0 |
+| `B_dense_plus_rerank` | 1/20 (5.0%; 95% CI 1%-24%) | 0/5 (0.0%; 95% CI 0%-43%) | — | 0 |
+| `C_hybrid_no_rerank` | 3/20 (15.0%; 95% CI 5%-36%) | 0/5 (0.0%; 95% CI 0%-43%) | — | 0 |
+| `D_hybrid_plus_rerank` | 0/20 (0.0%; 95% CI 0%-16%) | 0/5 (0.0%; 95% CI 0%-43%) | — | 0 |
 
 ## Citations (tag validity is structural, not factual grounding)
 

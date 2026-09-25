@@ -16,8 +16,14 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 0.95,
+      "all_sources_at_5": 0.95,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
       "mrr_at_10": 0.925,
-      "ndcg_at_10": 0.9315464876785728,
+      "ndcg_at_10": 0.931546,
       "min_ranking_depth": 5,
       "note": "Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5."
     },
@@ -43,8 +49,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
+        "unsupported_answer": 0,
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
@@ -74,8 +98,8 @@
     },
     "latency": {
       "n": 25,
-      "total_ms_p50": 5680.208206176758,
-      "total_ms_p95": 8940.786600112915
+      "total_ms_p50": 5680.208206,
+      "total_ms_p95": 8940.7866
     },
     "failures": [
       {
@@ -144,7 +168,7 @@
       "hit_at_5": 0.95,
       "hit_at_10": 0.95,
       "mrr_at_10": 0.925,
-      "ndcg_at_10": 0.9315464876785728,
+      "ndcg_at_10": 0.931546,
       "abstention_rate": 0.32,
       "adversarial_abstention_rate": 1.0,
       "n_adversarial": 5
@@ -167,7 +191,13 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 1.0,
-      "mrr_at_10": 0.9666666666666668,
+      "all_sources_at_5": 1.0,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
+      "mrr_at_10": 0.966667,
       "ndcg_at_10": 0.975,
       "min_ranking_depth": 5,
       "note": "Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5."
@@ -194,8 +224,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
+        "unsupported_answer": 0,
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
@@ -225,8 +273,8 @@
     },
     "latency": {
       "n": 25,
-      "total_ms_p50": 6578.6027908325195,
-      "total_ms_p95": 9823.957443237305
+      "total_ms_p50": 6578.602791,
+      "total_ms_p95": 9823.957443
     },
     "failures": [
       {
@@ -257,7 +305,7 @@
       "n": 25,
       "hit_at_5": 1.0,
       "hit_at_10": 1.0,
-      "mrr_at_10": 0.9666666666666666,
+      "mrr_at_10": 0.966667,
       "ndcg_at_10": 0.975,
       "abstention_rate": 0.24,
       "adversarial_abstention_rate": 1.0,
@@ -281,6 +329,12 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 0.95,
+      "all_sources_at_5": 0.95,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
       "mrr_at_10": 0.95,
       "ndcg_at_10": 0.95,
       "min_ranking_depth": 5,
@@ -308,8 +362,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
+        "unsupported_answer": 0,
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
@@ -339,8 +411,8 @@
     },
     "latency": {
       "n": 25,
-      "total_ms_p50": 5554.161787033081,
-      "total_ms_p95": 9293.876647949219
+      "total_ms_p50": 5554.161787,
+      "total_ms_p95": 9293.876648
     },
     "failures": [
       {
@@ -432,6 +504,12 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 0.95,
+      "all_sources_at_5": 0.95,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
       "mrr_at_10": 0.95,
       "ndcg_at_10": 0.95,
       "min_ranking_depth": 5,
@@ -457,8 +535,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
+        "unsupported_answer": 0,
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
@@ -488,8 +584,8 @@
     },
     "latency": {
       "n": 25,
-      "total_ms_p50": 6757.34543800354,
-      "total_ms_p95": 10340.58928489685
+      "total_ms_p50": 6757.345438,
+      "total_ms_p95": 10340.589285
     },
     "failures": [
       {

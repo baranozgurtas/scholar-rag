@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from eval.harness import render_markdown, summarize
+from eval.harness import SERIALIZED_FLOAT_DIGITS, render_markdown, round_floats, summarize
 from eval.questions import QUESTIONS_PATH, load_questions
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -123,7 +123,9 @@ definitions. No model was re-run. Limitations:
 def main(argv: list[str] | None = None) -> int:
     results = reanalyze()
     (RESULTS_DIR / "legacy_reanalysis.json").write_text(
-        json.dumps(results, indent=2, ensure_ascii=False) + "\n"
+        # Floats rounded to SERIALIZED_FLOAT_DIGITS so the file is identical
+        # across Python versions / platforms (checked in CI).
+        json.dumps(round_floats(results, SERIALIZED_FLOAT_DIGITS), indent=2, ensure_ascii=False) + "\n"
     )
     md = render_markdown(
         dict(results),

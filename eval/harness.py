@@ -22,11 +22,13 @@ every rate; they are never scored as zeros or ones.
 
 from __future__ import annotations
 
+import json
 import math
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
-from eval.metrics import hit_at_k, mrr_at_k, ndcg_at_k
+from eval.metrics import all_sources_at_k, hit_at_k, mrr_at_k, ndcg_at_k
 
 WITHHELD_OUTCOMES = {"mixed_abstention", "uncited_answer", "invalid_citation"}
 
@@ -36,6 +38,24 @@ FACTUAL_GROUNDING_NOTE = (
     "supports the claim. Use `python -m eval.ragas_eval` (LLM judge) or human "
     "review for grounding."
 )
+
+
+# Serialized summaries round every float to this many decimal places.
+# Summation order and libm differences across Python builds change the last
+# digits (e.g. 0.9666666666666666 vs 0.9666666666666668); 6 places is far
+# finer than any reported precision (3) and makes committed JSON reproducible.
+SERIALIZED_FLOAT_DIGITS = 6
+
+
+def round_floats(obj: Any, ndigits: int = SERIALIZED_FLOAT_DIGITS) -> Any:
+    """Recursively round floats in dicts/lists for stable JSON output."""
+    if isinstance(obj, float):
+        return round(obj, ndigits)
+    if isinstance(obj, dict):
+        return {k: round_floats(v, ndigits) for k, v in obj.items()}
+    if isinstance(obj, list | tuple):
+        return [round_floats(v, ndigits) for v in obj]
+    return obj
 
 
 def percentile(values: list[float], q: float) -> float | None:
@@ -73,6 +93,59 @@ def _mean(xs: list[float]) -> float | None:
     return sum(xs) / len(xs) if xs else None
 
 
+# Statuses for released answers to false-premise items.
+PREMISE_CORRECTED = "premise_corrected"          # set only by a human label
+PREMISE_UNSUPPORTED = "unsupported_answer"       # counts as a false answer
+PREMISE_NEEDS_REVIEW = "needs_manual_review"     # neither credited nor penalised
+MANUAL_PREMISE_LABELS = {PREMISE_CORRECTED, PREMISE_UNSUPPORTED}
+
+
+def premise_status(r: dict[str, Any]) -> str | None:
+    """Status of a released answer to a false-premise item (else None).
+
+    No answer is ever credited automatically. A human label in
+    `manual_premise_label` (from `premise_reviews.json`, see
+    `apply_manual_premise_labels`) decides. Without one:
+    - the answer mentions none of `premise_correction.review_trigger_terms_any`
+      → `unsupported_answer` (it cannot be stating the correction);
+    - it mentions one → `needs_manual_review` (a mention of "Claude-1.3" is not
+      evidence of a correct correction; it may still assert the false premise).
+    """
+    pc = r.get("premise_correction") or {}
+    if not pc or r.get("abstained") or r.get("error"):
+        return None
+    label = r.get("manual_premise_label")
+    if label is not None:
+        if label not in MANUAL_PREMISE_LABELS:
+            raise ValueError(f"{r.get('id')}: invalid manual_premise_label {label!r}")
+        return label
+    answer = (r.get("answer") or "").lower()
+    triggers = pc.get("review_trigger_terms_any", [])
+    return PREMISE_NEEDS_REVIEW if any(t.lower() in answer for t in triggers) else PREMISE_UNSUPPORTED
+
+
+PREMISE_REVIEWS_FILE = "premise_reviews.json"
+
+
+def load_premise_reviews(run_dir: Path) -> dict[str, str]:
+    """Human labels written next to a generation run's records, if any.
+
+    Format: {"H12": "premise_corrected" | "unsupported_answer", ...}. The file
+    is written by a person after reading the answer; nothing generates it.
+    """
+    path = run_dir / PREMISE_REVIEWS_FILE
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def apply_manual_premise_labels(records: list[dict[str, Any]], labels: dict[str, str]) -> None:
+    """Attach human labels {question_id: premise_corrected|unsupported_answer}."""
+    for r in records:
+        if r.get("id") in labels:
+            if labels[r["id"]] not in MANUAL_PREMISE_LABELS:
+                raise ValueError(f"{r['id']}: invalid label {labels[r['id']]!r}")
+            r["manual_premise_label"] = labels[r["id"]]
+
+
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute the separately reported metrics for one config's records."""
     errors = [r for r in records if r.get("error")]
@@ -85,14 +158,39 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 
     # ── Abstention ──────────────────────────────────────────────
     false_abst = [r for r in answerable if r.get("abstained")]
-    false_ans = [r for r in unanswerable if not r.get("abstained")]
+    # False-premise answers: only a human label can credit a correction;
+    # answers awaiting review are neither false nor correct (see premise_status).
+    pending = [r for r in unanswerable if premise_status(r) == PREMISE_NEEDS_REVIEW]
+    corrected = [r for r in unanswerable if premise_status(r) == PREMISE_CORRECTED]
+    false_ans = [
+        r for r in unanswerable
+        if not r.get("abstained") and premise_status(r) not in (PREMISE_NEEDS_REVIEW, PREMISE_CORRECTED)
+    ]
+    false_premise = [r for r in unanswerable if r.get("premise_correction")]
+    n_scored_unans = len(unanswerable) - len(pending)
     abstention = {
         "false_abstention_on_answerable": _rate(len(false_abst), len(answerable)),
         "false_abstention_by_outcome": dict(Counter(r.get("outcome", "?") for r in false_abst)),
-        "false_answer_on_unanswerable": _rate(len(false_ans), len(unanswerable)),
+        # Pending-review items are left out of the denominator; the upper bound
+        # counts every pending item as a false answer.
+        "false_answer_on_unanswerable": _rate(len(false_ans), n_scored_unans),
+        "false_answer_upper_bound_if_pending_are_false": _rate(len(false_ans) + len(pending), len(unanswerable)),
+        "pending_manual_review": [r.get("id") for r in pending],
         "abstention_by_outcome_on_unanswerable": dict(
             Counter(r.get("outcome", "?") for r in unanswerable if r.get("abstained"))
         ),
+        "false_premise": {
+            "n": len(false_premise),
+            "abstained": sum(1 for r in false_premise if r.get("abstained")),
+            "premise_corrected_human_labelled": len(corrected),
+            "needs_manual_review": len(pending),
+            "unsupported_answer": sum(1 for r in false_premise if premise_status(r) == PREMISE_UNSUPPORTED),
+            "note": (
+                "No correction is credited automatically. Released answers that mention a "
+                "review-trigger term are needs_manual_review until a human labels them in "
+                "premise_reviews.json; answers without one are unsupported (false) answers."
+            ),
+        },
     }
 
     # ── Citations: structural tag validity ──────────────────────
@@ -134,8 +232,14 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         elif r.get("expected_sources"):
             if not hit_at_k(r.get("ranked_sources") or [], r["expected_sources"], 5):
                 kinds.append("retrieval_miss_at_5")
+            elif not all_sources_at_k(r.get("ranked_sources") or [], r["expected_sources"], 5):
+                kinds.append("missing_required_source_at_5")
             if r.get("abstained"):
                 kinds.append(f"false_abstention:{r.get('outcome', '?')}")
+        elif premise_status(r) == PREMISE_NEEDS_REVIEW:
+            kinds.append("needs_manual_review:false_premise")
+        elif premise_status(r) == PREMISE_CORRECTED:
+            pass  # human-labelled correct correction
         elif not r.get("abstained"):
             kinds.append("false_answer")
         if not r.get("error") and r.get("outcome") in WITHHELD_OUTCOMES:
@@ -172,9 +276,20 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 def _retrieval_block(answerable: list[dict[str, Any]]) -> dict[str, Any]:
     depths = [len(r.get("ranked_sources") or []) for r in answerable]
     min_depth = min(depths) if depths else 0
+    multi = [r for r in answerable if len(r["expected_sources"]) > 1]
     return {
         "n": len(answerable),
         "hit_at_5": _mean([hit_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in answerable]),
+        "all_sources_at_5": _mean(
+            [all_sources_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in answerable]
+        ),
+        "multi_paper": {
+            "n": len(multi),
+            "hit_at_5": _mean([hit_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in multi]),
+            "all_sources_at_5": _mean(
+                [all_sources_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in multi]
+            ),
+        },
         "mrr_at_10": _mean([mrr_at_k(r["ranked_sources"], r["expected_sources"], 10) for r in answerable]),
         "ndcg_at_10": _mean([ndcg_at_k(r["ranked_sources"], r["expected_sources"], 10) for r in answerable]),
         "min_ranking_depth": min_depth,
@@ -223,6 +338,8 @@ def summarize_retrieval(records: list[dict[str, Any]]) -> dict[str, Any]:
             kinds.append("pipeline_error")
         elif r.get("expected_sources") and not hit_at_k(r["ranked_sources"], r["expected_sources"], 5):
             kinds.append("retrieval_miss_at_5")
+        elif r.get("expected_sources") and not all_sources_at_k(r["ranked_sources"], r["expected_sources"], 5):
+            kinds.append("missing_required_source_at_5")
         tds = r.get("top_dense_score")
         if tds is not None and tds < LOW_TOP_DENSE_SCORE:
             kinds.append(f"low_top_dense_score:{tds:.3f}")
@@ -267,13 +384,16 @@ def render_retrieval_markdown(summaries: dict[str, dict[str, Any]], title: str, 
     lines += [
         "## Retrieval (answerable questions)",
         "",
-        "| Config | n | Hit@5 | MRR@10 | nDCG@10 | Retrieval+rerank p50 / p95 (ms) | Errors |",
-        "|---|---|---|---|---|---|---|",
+        "| Config | n | Hit@5 | All-sources@5 | Multi-paper n / Hit@5 / All-sources@5 | MRR@10 | nDCG@10 | Retrieval+rerank p50 / p95 (ms) | Errors |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for name, s in summaries.items():
         r, lt = s["retrieval"], s["latency"]
+        mp = r["multi_paper"]
         lines.append(
-            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['mrr_at_10'])} | {_fmt(r['ndcg_at_10'])} | "
+            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['all_sources_at_5'])} | "
+            f"{mp['n']} / {_fmt(mp['hit_at_5'])} / {_fmt(mp['all_sources_at_5'])} | "
+            f"{_fmt(r['mrr_at_10'])} | {_fmt(r['ndcg_at_10'])} | "
             f"{_fmt(lt['retrieval_plus_rerank_ms_p50'], 0)} / {_fmt(lt['retrieval_plus_rerank_ms_p95'], 0)} | "
             f"{s['counts']['n_errors']} |"
         )
@@ -327,27 +447,35 @@ def render_markdown(summaries: dict[str, dict[str, Any]], title: str, preamble: 
     lines += [
         "## Retrieval (answerable questions)",
         "",
-        "| Config | n | Hit@5 | MRR@10 | nDCG@10 | Note |",
-        "|---|---|---|---|---|---|",
+        "| Config | n | Hit@5 | All-sources@5 | Multi-paper n / All-sources@5 | MRR@10 | nDCG@10 | Note |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for name, s in summaries.items():
         r = s["retrieval"]
         lines.append(
-            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['mrr_at_10'])} | "
+            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['all_sources_at_5'])} | "
+            f"{r['multi_paper']['n']} / {_fmt(r['multi_paper']['all_sources_at_5'])} | {_fmt(r['mrr_at_10'])} | "
             f"{_fmt(r['ndcg_at_10'])} | {r['note']} |"
         )
     lines += [
         "",
         "## Abstention",
         "",
-        "| Config | False abstention (answerable) | False answer (unanswerable) | Errors |",
-        "|---|---|---|---|",
+        "| Config | False abstention (answerable) | False answer (unanswerable; pending review excluded) | False-premise items: abstained / human-labelled corrected / pending review / unsupported | Errors |",
+        "|---|---|---|---|---|",
     ]
     for name, s in summaries.items():
         a = s["abstention"]
+        fp = a["false_premise"]
+        fp_cell = (
+            f"{fp['abstained']} / {fp['premise_corrected_human_labelled']} / {fp['needs_manual_review']} / "
+            f"{fp['unsupported_answer']} (n={fp['n']})"
+            if fp["n"]
+            else "—"
+        )
         lines.append(
             f"| `{name}` | {_fmt_rate(a['false_abstention_on_answerable'])} | "
-            f"{_fmt_rate(a['false_answer_on_unanswerable'])} | {s['counts']['n_errors']} |"
+            f"{_fmt_rate(a['false_answer_on_unanswerable'])} | {fp_cell} | {s['counts']['n_errors']} |"
         )
     lines += [
         "",
@@ -392,10 +520,15 @@ def render_markdown(summaries: dict[str, dict[str, Any]], title: str, preamble: 
 
 __all__ = [
     "FACTUAL_GROUNDING_NOTE",
+    "PREMISE_REVIEWS_FILE",
     "WITHHELD_OUTCOMES",
+    "apply_manual_premise_labels",
+    "load_premise_reviews",
     "percentile",
+    "premise_status",
     "render_markdown",
     "render_retrieval_markdown",
+    "round_floats",
     "summarize",
     "summarize_retrieval",
     "wilson_interval",

@@ -228,3 +228,6 @@ logs/
 qdrant_snapshot/
 eval_outputs.zip
 scholar-rag-colab.zip
+
+# Embedded Qdrant index (QDRANT_PATH)
+qdrant_local/

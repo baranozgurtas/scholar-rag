@@ -6,7 +6,7 @@ All deterministic; no model, Ollama or Qdrant needed.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -208,3 +208,146 @@ class TestThresholdSelection:
     def test_refuses_dev_without_both_classes(self) -> None:
         with pytest.raises(ValueError):
             select_threshold([_rec("a1", ["p"], ["p"], False, score=0.9)])
+
+
+class TestSerialization:
+    def test_round_floats_removes_last_digit_drift(self) -> None:
+        from eval.harness import round_floats
+
+        a = round_floats({"m": 0.9666666666666666, "l": [0.1 + 0.2], "n": 3, "s": None})
+        b = round_floats({"m": 0.9666666666666668, "l": [0.3], "n": 3, "s": None})
+        assert a == b == {"m": 0.966667, "l": [0.3], "n": 3, "s": None}
+
+    def test_committed_legacy_json_matches_regeneration(self) -> None:
+        from eval.harness import round_floats
+        from eval.reanalyze_legacy import RESULTS_DIR
+
+        committed = json.loads((RESULTS_DIR / "legacy_reanalysis.json").read_text())
+        assert committed == json.loads(json.dumps(round_floats(reanalyze())))
+
+
+class TestReviewPacket:
+    def test_packet_lists_every_question_and_claims_no_review(self) -> None:
+        from eval.review_packet import build_packet
+
+        text = build_packet(QUESTIONS_V2_DRAFT_PATH)
+        for q in load_questions(QUESTIONS_V2_DRAFT_PATH):
+            assert f"### {q.id} ·" in text
+        assert "Nothing here is human-reviewed" in text
+        assert "review status: unreviewed" in text
+
+
+class TestFalsePremiseScoring:
+    PC: ClassVar[dict[str, list[str]]] = {"review_trigger_terms_any": ["claude-1.3", "claude 1.3"]}
+
+    def _fp(self, id_: str, abstained: bool, answer: str) -> dict[str, Any]:
+        r = _rec(id_, [], ["lost-in-the-middle-2023"], abstained)
+        r |= {"premise_correction": self.PC, "answer": answer}
+        return r
+
+    def _recs(self) -> list[dict[str, Any]]:
+        return [
+            self._fp("abst", True, "I could not find sufficient information..."),
+            self._fp("mentions", False, "The paper evaluates Claude-1.3, not Claude 3 [Paper: X | p.2 | §intro]."),
+            # Mentions Claude-1.3 but still asserts the false premise:
+            self._fp("sneaky", False, "Claude 3 Opus scores 71%, like Claude-1.3 [Paper: X | p.2 | §intro]."),
+            self._fp("unsupported", False, "Claude 3 Opus scores 71% [Paper: X | p.2 | §intro]."),
+            _rec("plain_unans", [], ["x"], False),
+        ]
+
+    def test_keyword_mention_is_never_credited_automatically(self) -> None:
+        from eval.harness import premise_status
+
+        by = {r["id"]: r for r in self._recs()}
+        assert premise_status(by["mentions"]) == "needs_manual_review"
+        assert premise_status(by["sneaky"]) == "needs_manual_review"
+        assert premise_status(by["unsupported"]) == "unsupported_answer"
+        assert premise_status(by["abst"]) is None
+
+        s = summarize(self._recs())
+        fp = s["abstention"]["false_premise"]
+        assert fp["premise_corrected_human_labelled"] == 0
+        assert (fp["abstained"], fp["needs_manual_review"], fp["unsupported_answer"]) == (1, 2, 1)
+        fa = s["abstention"]["false_answer_on_unanswerable"]
+        assert (fa["count"], fa["n"]) == (2, 3)  # pending items excluded from the denominator
+        ub = s["abstention"]["false_answer_upper_bound_if_pending_are_false"]
+        assert (ub["count"], ub["n"]) == (4, 5)
+        assert sorted(s["abstention"]["pending_manual_review"]) == ["mentions", "sneaky"]
+        fails = {f["id"]: f["failures"] for f in s["failures"]}
+        assert fails["mentions"] == ["needs_manual_review:false_premise"]
+        assert fails["unsupported"] == ["false_answer"]
+
+    def test_human_labels_resolve_pending_items(self) -> None:
+        from eval.harness import apply_manual_premise_labels
+
+        recs = self._recs()
+        apply_manual_premise_labels(recs, {"mentions": "premise_corrected", "sneaky": "unsupported_answer"})
+        s = summarize(recs)
+        fp = s["abstention"]["false_premise"]
+        assert (fp["premise_corrected_human_labelled"], fp["needs_manual_review"], fp["unsupported_answer"]) == (1, 0, 2)
+        fa = s["abstention"]["false_answer_on_unanswerable"]
+        assert (fa["count"], fa["n"]) == (3, 5)  # sneaky, unsupported, plain_unans
+        assert s["abstention"]["pending_manual_review"] == []
+
+    def test_invalid_label_is_rejected(self) -> None:
+        from eval.harness import apply_manual_premise_labels
+
+        with pytest.raises(ValueError):
+            apply_manual_premise_labels(self._recs(), {"mentions": "looks_fine"})
+
+    def test_premise_reviews_file_is_applied_by_split_report(self, tmp_path) -> None:
+        from eval.retrieval_ablation import append_jsonl
+        from eval.split_report import split_report
+
+        run = tmp_path / "generation_D_hybrid_plus_rerank"
+        run.mkdir()
+        for r in self._recs():
+            r["split"] = "heldout"
+            append_jsonl(run / "records.jsonl", r)
+        (run / "premise_reviews.json").write_text(json.dumps({"mentions": "premise_corrected"}))
+        out = split_report(run)
+        fp = out["heldout"]["D_hybrid_plus_rerank"]["abstention"]["false_premise"]
+        assert (fp["premise_corrected_human_labelled"], fp["needs_manual_review"]) == (1, 1)
+
+
+class TestDraftSetRules:
+    @pytest.fixture(scope="class")
+    def qs(self) -> list[EvalQuestion]:
+        return load_questions(QUESTIONS_V2_DRAFT_PATH)
+
+    def test_every_unanswerable_explains_why(self, qs: list[EvalQuestion]) -> None:
+        for q in qs:
+            if not q.answerable:
+                assert q.absent_terms.get("terms"), q.id
+
+    def test_previously_inspected_items_are_flagged(self, qs: list[EvalQuestion]) -> None:
+        old = {f"D{i:02d}" for i in range(1, 11)} | {f"H{i:02d}" for i in range(1, 13)}
+        for q in qs:
+            assert q.inspected_before_freeze == (q.id in old), q.id
+
+    def test_hard_items_do_not_name_their_target_paper(self, qs: list[EvalQuestion]) -> None:
+        names = {
+            "rag-lewis-2020": ["rag ", "lewis"], "lost-in-the-middle-2023": ["lost in the middle"],
+            "bge-m3-chen-2024": ["bge", "m3-embedding"], "dropout-hinton-2012": ["hinton", "dropout"],
+            "deepar-salinas-2017": ["deepar"], "conformal-qr-romano-2019": ["romano"],
+            "bpr-rendle-2009": ["bpr", "rendle"], "ncf-he-2017": ["ncf", "neural collaborative"],
+            "causal-forest-wager-2018": ["causal forest", "wager"], "colbertv2-santhanam-2022": ["colbert"],
+            "n-beats-oreshkin-2019": ["n-beats"], "xgboost-chen-2016": ["xgboost"],
+        }
+        hard = [q for q in qs if q.source_kind == "drafted_hard"]
+        assert len(hard) >= 9
+        for q in hard:
+            text = q.question.lower()
+            for src in q.expected_sources:
+                assert not any(n in text for n in names[src]), (q.id, src)
+
+    def test_multi_paper_items_have_evidence_from_every_source(self, qs: list[EvalQuestion]) -> None:
+        multi = [q for q in qs if len(q.expected_sources) > 1]
+        assert len(multi) >= 4
+        for q in multi:
+            assert {e["source"] for e in q.evidence} >= set(q.expected_sources), q.id
+
+    def test_d10_is_answerable_and_h12_is_false_premise(self, qs: list[EvalQuestion]) -> None:
+        by = {q.id: q for q in qs}
+        assert by["D10"].answerable and by["D10"].expected_sources == ["ncf-he-2017"]
+        assert not by["H12"].answerable and by["H12"].premise_correction["review_trigger_terms_any"]

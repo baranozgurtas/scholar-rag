@@ -7,6 +7,7 @@ import math
 import pytest
 
 from eval.metrics import (
+    all_sources_at_k,
     compute_retrieval_metrics,
     hit_at_k,
     mrr_at_k,
@@ -32,6 +33,30 @@ class TestHitAtK:
 
     def test_empty_expected_returns_zero(self) -> None:
         assert hit_at_k(["a.pdf"], [], k=5) == 0.0
+
+
+class TestAllSourcesAtK:
+    def test_equals_hit_for_single_paper(self) -> None:
+        ranked = ["x.pdf", "a.pdf", "y.pdf"]
+        for k in (1, 2, 3):
+            assert all_sources_at_k(ranked, ["a"], k) == hit_at_k(ranked, ["a"], k)
+
+    def test_multi_paper_requires_every_source(self) -> None:
+        ranked = ["a.pdf", "a.pdf", "a.pdf", "a.pdf", "a.pdf", "b.pdf"]
+        assert hit_at_k(ranked, ["a", "b"], 5) == 1.0  # either paper is enough
+        assert all_sources_at_k(ranked, ["a", "b"], 5) == 0.0  # b only at rank 6
+        assert all_sources_at_k(ranked, ["a", "b"], 6) == 1.0
+
+    def test_d05_rankings_from_committed_run(self) -> None:
+        # D05 (BPR vs NCF) top-10 sources, config D, retrieval_v2draft_20260925T213410Z_ddadab57:
+        # NCF only at ranks 9-10, so the generator's top-5 lacks one required paper.
+        ranked = ["bpr-rendle-2009"] * 8 + ["ncf-he-2017"] * 2
+        expected = ["bpr-rendle-2009", "ncf-he-2017"]
+        assert hit_at_k(ranked, expected, 5) == 1.0
+        assert all_sources_at_k(ranked, expected, 5) == 0.0
+
+    def test_unanswerable_returns_zero(self) -> None:
+        assert all_sources_at_k(["a.pdf"], [], 5) == 0.0
 
 
 class TestMRRAtK:

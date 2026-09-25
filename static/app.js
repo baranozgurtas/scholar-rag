@@ -185,8 +185,11 @@ function formatAnswerWithCitations(text, allowedCitations) {
 
   let safe = escapeHtml(text);
 
-  safe = safe.replace(/\[Paper:\s*[^\]]+\]/g, (match) => {
-    const idx = citeMap.get(match);
+  // Bracketed or parenthesized tags; both map to the canonical bracket form
+  // the API returns in `citations` (see rag/guards/citation_checker.py).
+  const canonical = (title, page, section) => `[Paper: ${title.trim()} | p.${page.trim()} | §${section.trim()}]`;
+  safe = safe.replace(/[\[(]Paper:\s*([^|\])]+?)\s*\|\s*p\.([\d-]+)\s*\|\s*§([\w-]+)\s*[\])]/g, (match, title, page, section) => {
+    const idx = citeMap.get(canonical(title, page, section)) ?? citeMap.get(match);
     if (idx !== undefined) {
       return `<span class="cite" onclick="focusSource(${idx-1})" title="${escapeHtml(match)}">${idx}</span>`;
     }

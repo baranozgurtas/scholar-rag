@@ -30,9 +30,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from eval.harness import render_markdown, summarize
+from eval.harness import (
+    apply_manual_premise_labels,
+    load_premise_reviews,
+    render_markdown,
+    round_floats,
+    summarize,
+)
 from eval.retrieval_ablation import (
     CONFIG_BY_NAME,
+    QUESTION_KEYS,
     PreflightError,
     append_jsonl,
     git_state,
@@ -61,13 +68,8 @@ def generation_record(ranked: dict[str, Any], result: Any | None, gate: str | No
     """Merge a retrieval record with a generation result (or a gate abstention)."""
     from rag.guards.citation_checker import ABSTENTION_TEXT
 
-    rec = {
-        k: ranked[k]
-        for k in (
-            "id", "question", "split", "review_status", "source_kind", "expected_sources",
-            "ranked_sources", "top_rerank_score", "top_dense_score", "config",
-        )
-    }
+    rec = {k: ranked[k] for k in QUESTION_KEYS if k in ranked}
+    rec |= {k: ranked[k] for k in ("ranked_sources", "top_rerank_score", "top_dense_score", "config")}
     rec["context_chunks"] = [{"chunk_id": c.chunk_id, "text": c.text} for c in final]
     lat = dict(ranked["latency_ms"])
     if gate is not None:
@@ -165,8 +167,9 @@ def run_generation_eval(retrieval_run: Path, config: str, out_dir: Path | None =
         print(f"[generation:{config}] {i}/{len(ranked)} {rr['id']} outcome={gate or result.outcome}", flush=True)
 
     records = read_jsonl(records_path)
+    apply_manual_premise_labels(records, load_premise_reviews(out_dir))
     summary = summarize(records)
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
+    (out_dir / "summary.json").write_text(json.dumps(round_floats(summary), indent=2, ensure_ascii=False) + "\n")
     preamble = (
         f"Generation run for `{config}` from retrieval run `{retrieval_run.name}` · generator "
         f"`{manifest['generator']['model']}` (digest `{(manifest['generator']['ollama_digest'] or '')[:12]}`) · "

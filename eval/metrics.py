@@ -56,6 +56,20 @@ def hit_at_k(retrieved_sources: list[str], expected: list[str], k: int) -> float
     return 1.0 if (top_k & expected_norm) else 0.0
 
 
+def all_sources_at_k(retrieved_sources: list[str], expected: list[str], k: int) -> float:
+    """1.0 if EVERY expected paper appears in the top-k, else 0.0.
+
+    For single-paper questions this equals Hit@k. For multi-paper questions
+    (comparisons that need evidence from two papers) Hit@k is satisfied by
+    either paper alone; this metric requires all of them in the context the
+    generator sees (top-5 by default in the harness).
+    """
+    if not expected:
+        return 0.0
+    top_k = {_normalize_source(s) for s in retrieved_sources[:k]}
+    return 1.0 if {_normalize_source(e) for e in expected} <= top_k else 0.0
+
+
 def mrr_at_k(retrieved_sources: list[str], expected: list[str], k: int) -> float:
     if not expected:
         return 0.0
@@ -131,6 +145,7 @@ def compute_retrieval_metrics(
 
 __all__ = [
     "RetrievalMetrics",
+    "all_sources_at_k",
     "compute_retrieval_metrics",
     "hit_at_k",
     "mrr_at_k",
