@@ -9,7 +9,7 @@ support, and the plan for a larger reviewed held-out set.
 |---|---|
 | Legacy 25-question results (`eval/results/ablation_*.json`, Colab T4, generator not recorded) | Committed; re-analysed deterministically in `eval/results/legacy_reanalysis.md` |
 | Retrieval-only ablation on the 22-item rev-1 draft (`eval/results/runs/retrieval_v2draft_20260925T213410Z_ddadab57/`) | Run; **INDICATIVE** (unreviewed questions) and saturated (every config perfect on Hit@5 / MRR), so it cannot rank configs. Not a publishable score. |
-| Retrieval-only ablation on the current 35-item draft (hard items, revised labels) | **NOT RUN** |
+| Retrieval-only ablation on the 35-item draft (`eval/results/runs/retrieval_v2draft35_20260925T222828Z_f416193/`) | Run: 35/35 questions for each of A–D, 0 errors. **Exploratory**: questions are LLM-drafted, not human-reviewed, and their outcomes have been inspected. See [below](#exploratory-35-question-retrieval-run). |
 | Generation eval, config D | **Stopped at 2/22** on an 8 GB Mac (swap thrashing); no rates computed. See the run's `STATUS.md`. |
 | RAGAS (LLM-judged grounding) | **NOT RUN** |
 | Rerank threshold selection on dev / held-out | **NOT RUN** (gate stays disabled) |
@@ -67,6 +67,45 @@ Each run directory contains `manifest.json` (git commit and dirty flag,
 model names, generator Ollama digest, retrieval and chunking settings, PDF
 hashes, Qdrant point count, question-file hash and review-status counts,
 package versions) and the raw per-question JSONL files.
+
+## Exploratory 35-question retrieval run
+
+Run `retrieval_v2draft35_20260925T222828Z_f416193`: retrieval only (no
+generator), code `f416193`, 1,278-chunk index built from the 15 PDFs with
+the debris filter, BAAI/bge-m3 + BAAI/bge-reranker-v2-m3. The evaluated
+question file is snapshotted in the run directory (SHA-256
+`b5871225…df07`, matching `manifest.json`). `RUN_NOTE.md` and
+`inspection.json` record that every item's outcome has now been inspected,
+so the held-out split is not pristine. Nothing was tuned on these results.
+
+Answerable questions only; latency is retrieval + rerank per question.
+
+| Split | Config | Hit@5 | All-sources@5 | MRR@10 | nDCG@10 | p50 / p95 (s) | Failures |
+|---|---|---|---|---|---|---|---|
+| dev (11) | A dense | 1.000 | 10/11 | 1.000 | 0.965 | 0.35 / 2.06 | D05 |
+| | B dense + rerank | 1.000 | 10/11 | 1.000 | 0.985 | 12.60 / 21.27 | D05 |
+| | C hybrid | 1.000 | 10/11 | 1.000 | 0.985 | 0.90 / 1.08 | D05 |
+| | D hybrid + rerank | 1.000 | 10/11 | 1.000 | 0.982 | 15.37 / 17.77 | D05 |
+| held-out (14) | A dense | 1.000 | 14/14 | 1.000 | 0.991 | 0.30 / 0.41 | — |
+| | B dense + rerank | 1.000 | 13/14 | 1.000 | 0.974 | 10.78 / 13.49 | H13 |
+| | C hybrid | 1.000 | 13/14 | 0.952 | 0.949 | 0.75 / 1.00 | H13 |
+| | D hybrid + rerank | 1.000 | 13/14 | 1.000 | 0.962 | 14.82 / 23.77 | H13 |
+
+- **Single-paper retrieval is saturated**: Hit@5 = 1.000 for every config on
+  both splits, including the harder items that do not name their paper.
+- **Multi-paper coverage is the only differentiator.** D05 (BPR vs NCF)
+  never has NCF in the top 5 (absent in A, rank 6 in B and C, rank 9 in D).
+  H13 (DeepAR + CQR) has DeepAR in the top 5 only for dense-only A (rank 4;
+  rank 10 in B and C, absent from D's top 10). With four multi-paper items,
+  this is an observation, not an established difference between configs.
+- C's only single-paper miss is H07 (MRR 0.33, the dropout paper ranked
+  first); reranking fixes it.
+- Top-1 rerank scores of answerable and unanswerable questions overlap, so
+  no threshold was proposed. D14's top-1 is the distractor N-BEATS (0.917).
+- These are retrieval results; they say nothing about answer quality.
+
+Full per-split tables and per-question failures:
+[`report_by_split.md`](../eval/results/runs/retrieval_v2draft35_20260925T222828Z_f416193/report_by_split.md).
 
 ## Metrics, reported separately
 
