@@ -76,7 +76,7 @@ package versions) and the raw per-question JSONL files.
 | All-sources@5 | answerable; also reported for the multi-paper subset | 1 if **every** expected paper is in the top-5 (the chunks the generator sees), else 0. Equals Hit@5 for single-paper questions. For multi-paper comparisons it exposes partial retrieval that Hit@5 hides (e.g. D05: BPR in top-5, NCF only at rank 9 in config D). Failures are listed as `missing_required_source_at_5`. |
 | False abstention | answerable | Share answered with the abstention text, broken down by `outcome` (model abstained, withheld by guard, rerank gate). |
 | False answer | unanswerable | Share where an answer was released, **excluding** premise corrections (next row). |
-| False-premise breakdown | unanswerable items with `premise_correction` | Counts of abstained / `premise_corrected` / unsupported answer. `premise_corrected` = released answer (so it passed the citation policy) that mentions one of the item's `required_terms_any`; a keyword match, so these answers should be checked by hand. Unsupported answers count as false answers. |
+| False-premise breakdown | unanswerable items with `premise_correction` | Abstained / human-labelled `premise_corrected` / `needs_manual_review` / unsupported answer. **No correction is credited automatically.** A released answer that mentions a `review_trigger_terms_any` term (e.g. "Claude-1.3") is `needs_manual_review`: it is excluded from the false-answer rate, listed in `pending_manual_review`, and counted as false in `false_answer_upper_bound_if_pending_are_false`. A person resolves it by writing `premise_reviews.json` (`{"H12": "premise_corrected" | "unsupported_answer"}`) next to the generation records; summaries and `eval.split_report` apply it. Answers without a trigger term are unsupported (false) answers. |
 | Citation tag validity | all generated tags | Share of tags whose (title, page) was among the supplied passages. **Structural only.** |
 | Factual grounding | — | Not measured by the harness. `eval.ragas_eval` gives an LLM-judged estimate (same model family as the generator); human review is the reference. |
 | Latency | all non-error | Retrieval-only runs: p50 / p95 of retrieval + rerank. Generation runs: retrieval + rerank + generation, measured in separate processes and summed. |
@@ -205,7 +205,9 @@ file. Only the 13 hard items (D11–D15, H13–H20) have never been run or
 inspected.
 
 Revisions after the first review packet (each bumps `revision` and adds a
-`review_notes` entry):
+`review_notes` entry). Later corrections: D10's reference no longer includes
+the Figure 4 sentence; D04 and H08 evidence covers every clause; H05 records
+the regularization formula and the definitions of T and w from p.2.
 
 - **D02**: added evidence for the late-interaction half of the comparison.
 - **D05**: evidence now covers BPR-Opt, the maximum-posterior estimator and
@@ -216,8 +218,9 @@ Revisions after the first review packet (each bumps `revision` and adds a
   NCF's text (average 4.9% relative improvement of NeuMF over BPR).
 - **H06**: added the second-moment correction line.
 - **H07**: names ImageNet; evidence covers each clause of the reference.
-- **H12**: false-premise item with `premise_correction`; a correction is
-  scored separately from an unsupported answer.
+- **H12**: false-premise item with `premise_correction`. Mentioning
+  "Claude-1.3" does not earn credit; such answers go to manual review
+  (`premise_reviews.json`), and only a human label scores a correction.
 
 Rejected while drafting: a "ColBERTv2 warmup schedule" unanswerable item
 (the paper reports a 20,000-step warmup) and a "BGE-M3 latency" item (the

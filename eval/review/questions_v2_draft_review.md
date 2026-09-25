@@ -1,6 +1,6 @@
 # Review packet: `questions_v2_draft.jsonl`
 
-SHA-256 `b051f2b8d73f7b72` · 35 questions (25 answerable, 10 unanswerable) · review status: unreviewed.
+SHA-256 `b587122590998b9c` · 35 questions (25 answerable, 10 unanswerable) · review status: unreviewed.
 
 All questions were drafted by an LLM. Quotes and absent terms are machine-checked against the PDF text; that does not establish that a question is well-posed, unambiguous, or that the reference answer is complete. Nothing here is human-reviewed. After review, set `review_status` to `human_reviewed` in the JSONL for the questions you accept (and update `tests/test_eval_harness.py::TestQuestionFiles::test_no_question_claims_human_review`).
 
@@ -11,13 +11,13 @@ Held-out caveat: items marked *outcomes already inspected* (D01-D10 and H01-H12,
 | D01 | dev | methodology | 1 | rag-lewis-2020 | yes | answerable |
 | D02 | dev | comparison | 2 | colbertv2-santhanam-2022 | yes | answerable |
 | D03 | dev | factoid | 1 | lost-in-the-middle-2023 | yes | answerable |
-| D04 | dev | methodology | 1 | conformal-qr-romano-2019 | yes | answerable |
+| D04 | dev | methodology | 2 | conformal-qr-romano-2019 | yes | answerable |
 | D05 | dev | comparison | 2 | bpr-rendle-2009, ncf-he-2017 | yes | answerable |
 | D06 | dev | methodology | 1 | dropout-hinton-2012 | yes | answerable |
 | D07 | dev | methodology | 1 | causal-forest-wager-2018 | yes | answerable |
 | D08 | dev | near_miss_unanswerable | 1 | — | yes | unanswerable |
 | D09 | dev | near_miss_unanswerable | 1 | — | yes | unanswerable |
-| D10 | dev | comparison | 2 | ncf-he-2017 | yes | answerable |
+| D10 | dev | comparison | 3 | ncf-he-2017 | yes | answerable |
 | D11 | dev | multi_paper | 1 | rag-lewis-2020, lost-in-the-middle-2023 | no | answerable |
 | D12 | dev | factoid | 1 | bge-m3-chen-2024 | no | answerable |
 | D13 | dev | methodology | 1 | dropout-hinton-2012 | no | answerable |
@@ -27,14 +27,14 @@ Held-out caveat: items marked *outcomes already inspected* (D01-D10 and H01-H12,
 | H02 | heldout | methodology | 1 | ragas-es-2023 | yes | answerable |
 | H03 | heldout | methodology | 1 | n-beats-oreshkin-2019 | yes | answerable |
 | H04 | heldout | factoid | 1 | deepar-salinas-2017 | yes | answerable |
-| H05 | heldout | factoid | 1 | xgboost-chen-2016 | yes | answerable |
+| H05 | heldout | factoid | 2 | xgboost-chen-2016 | yes | answerable |
 | H06 | heldout | methodology | 2 | adam-kingma-2014 | yes | answerable |
 | H07 | heldout | reasoning | 2 | data-discontents-paullada-2020 | yes | answerable |
-| H08 | heldout | factoid | 1 | ragas-es-2023 | yes | answerable |
+| H08 | heldout | factoid | 2 | ragas-es-2023 | yes | answerable |
 | H09 | heldout | near_miss_unanswerable | 1 | — | yes | unanswerable |
 | H10 | heldout | near_miss_unanswerable | 1 | — | yes | unanswerable |
 | H11 | heldout | near_miss_unanswerable | 1 | — | yes | unanswerable |
-| H12 | heldout | false_premise | 2 | — | yes | false premise |
+| H12 | heldout | false_premise | 3 | — | yes | false premise |
 | H13 | heldout | multi_paper | 1 | deepar-salinas-2017, conformal-qr-romano-2019 | no | answerable |
 | H14 | heldout | multi_paper | 1 | bpr-rendle-2009, ncf-he-2017 | no | answerable |
 | H15 | heldout | methodology | 1 | causal-forest-wager-2018 | no | answerable |
@@ -100,7 +100,7 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
-### D04 · dev · answerable · rev 1 · outcomes already inspected
+### D04 · dev · answerable · rev 2 · outcomes already inspected
 
 **Question:** How does conformalized quantile regression calibrate its prediction intervals?
 
@@ -110,11 +110,14 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 
 **Supporting evidence (machine-checked verbatim on the stated page):**
 - `conformal-qr-romano-2019` p.2: “a proper training set and a calibration set”
+- `conformal-qr-romano-2019` p.2: “We fit two quantile regressors on the proper training set”
+- `conformal-qr-romano-2019` p.2: “using the calibration set, we conformalize and, if necessary, correct this prediction interval”
 
 **Mechanical checks:** pass
 
 **Notes for the reviewer:**
 - Retrieval outcomes for this item were inspected (run retrieval_v2draft_20260925T213410Z_ddadab57) before this revision; not a pristine held-out item.
+- Rev 2: evidence expanded to cover fitting two quantile regressors on the proper training set and conformalizing with the calibration set.
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
@@ -205,23 +208,24 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
-### D10 · dev · answerable · rev 2 · outcomes already inspected
+### D10 · dev · answerable · rev 3 · outcomes already inspected
 
 **Question:** How does the pairwise-ranking matrix factorization baseline BPR compare with NeuMF on the MovieLens and Pinterest recommendation experiments?
 
 **Expected source(s):** `ncf-he-2017`
 
-**Reference answer:** NCF reports that NeuMF significantly outperforms BPR on both datasets, with an average relative improvement of 4.9% over BPR (4.5% over eALS). BPR's per-dataset HR@10 and NDCG@10 values are shown only in NCF's Figure 4, not in the text.
+**Reference answer:** NCF reports that NeuMF significantly outperforms BPR on both datasets, with an average relative improvement of 4.9% over BPR (4.5% over eALS).
 
 **Supporting evidence (machine-checked verbatim on the stated page):**
+- `ncf-he-2017` p.6: “on both datasets, significantly outperforming the state”
 - `ncf-he-2017` p.6: “the relative improvement over eALS and BPR is 4.5% and 4.9%, respectively”
-- `ncf-he-2017` p.6: “Figure 4 shows the performance of HR@10 and NDCG@10 with respect to the number of predictive factors”
 
 **Mechanical checks:** pass
 
 **Notes for the reviewer:**
 - Retrieval outcomes for this item were inspected (run retrieval_v2draft_20260925T213410Z_ddadab57) before this revision; not a pristine held-out item.
 - Rev 2: was 'What hit ratio does BPR achieve on MovieLens in the original BPR paper?' labelled unanswerable. NCF reports BPR as a MovieLens baseline, so that label was contestable; replaced by an answerable comparison grounded in NCF's text. The exact BPR hit ratio is only in a figure, so the question no longer asks for it.
+- Rev 3: removed the Figure 4 sentence from the reference (not part of the answer); evidence now supports 'significantly outperforms on both datasets' and the 4.9% / 4.5% figures.
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
@@ -380,7 +384,7 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
-### H05 · heldout · answerable · rev 1 · outcomes already inspected
+### H05 · heldout · answerable · rev 2 · outcomes already inspected
 
 **Question:** What regularization term does XGBoost add to its objective?
 
@@ -389,12 +393,17 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 **Reference answer:** Omega(f) = gamma*T + (1/2)*lambda*||w||^2, penalizing the number of leaves T and the squared leaf weights, which smooths the learnt weights to avoid over-fitting.
 
 **Supporting evidence (machine-checked verbatim on the stated page):**
+- `xgboost-chen-2016` p.2: “where Ω(f) = γT + 1 2λ∥w∥2”
+- `xgboost-chen-2016` p.2: “T is the number of leaves in the tree”
+- `xgboost-chen-2016` p.2: “leaf weights w”
 - `xgboost-chen-2016` p.2: “penalizes the complexity of the model”
+- `xgboost-chen-2016` p.2: “helps to smooth the final learnt weights to avoid over-fitting”
 
 **Mechanical checks:** pass
 
 **Notes for the reviewer:**
 - Retrieval outcomes for this item were inspected (run retrieval_v2draft_20260925T213410Z_ddadab57) before this revision; not a pristine held-out item.
+- Rev 2: added the regularization formula from p.2 (PDF text renders the 1/2 factor as '1 2λ'), the definitions of T and w, and the over-fitting sentence.
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
@@ -439,7 +448,7 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
-### H08 · heldout · answerable · rev 1 · outcomes already inspected
+### H08 · heldout · answerable · rev 2 · outcomes already inspected
 
 **Question:** How often did the two WikiEval annotators in the Ragas paper agree?
 
@@ -448,12 +457,14 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 **Reference answer:** About 95% of cases for faithfulness and context relevance, and about 90% for answer relevance.
 
 **Supporting evidence (machine-checked verbatim on the stated page):**
-- `ragas-es-2023` p.4: “the two annotators agreed in around 95% of cases”
+- `ragas-es-2023` p.4: “For faithfulness and context relevance, the two annotators agreed in around 95% of cases”
+- `ragas-es-2023` p.4: “For answer relevance, they agreed in around 90% of the cases”
 
 **Mechanical checks:** pass
 
 **Notes for the reviewer:**
 - Retrieval outcomes for this item were inspected (run retrieval_v2draft_20260925T213410Z_ddadab57) before this revision; not a pristine held-out item.
+- Rev 2: evidence expanded to cover both the 95% (faithfulness, context relevance) and 90% (answer relevance) figures.
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
@@ -499,14 +510,14 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 
-### H12 · heldout · FALSE PREMISE · rev 2 · outcomes already inspected
+### H12 · heldout · FALSE PREMISE · rev 3 · outcomes already inspected
 
 **Question:** Which Claude 3 models are evaluated in the Lost in the Middle paper, and how do they perform?
 
 **Why unanswerable:** none of “claude 3”, “claude-3” occurs anywhere in the whole corpus (machine-checked).
-**Distractor / note:** The paper evaluates Claude-1.3; a released answer that says so is scored as premise_corrected (see premise_correction), not as a false answer.
+**Distractor / note:** The paper evaluates Claude-1.3; released answers that mention it go to manual review (see premise_correction); none is credited automatically.
 
-**Premise correction (scored separately):** acceptable answer: The paper does not evaluate Claude 3; the Anthropic model it evaluates is Claude-1.3. Counted as corrected if released and it mentions any of “claude-1.3”, “claude 1.3”.
+**Premise correction (manual review):** acceptable answer: The paper does not evaluate Claude 3; the Anthropic model it evaluates is Claude-1.3. A released answer mentioning any of “claude-1.3”, “claude 1.3” is flagged needs_manual_review; it counts as corrected only if a person labels it so in premise_reviews.json. Released answers without those terms are false answers.
 - `lost-in-the-middle-2023` p.2: “Anthropic’s Claude-1.3”
 
 **Mechanical checks:** pass
@@ -514,6 +525,7 @@ Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ ye
 **Notes for the reviewer:**
 - Retrieval outcomes for this item were inspected (run retrieval_v2draft_20260925T213410Z_ddadab57) before this revision; not a pristine held-out item.
 - Rev 2: false-premise item. Abstaining is correct; a released answer that corrects the premise (mentions Claude-1.3) is scored as premise_corrected, not as a false answer; any other released answer is an unsupported (false) answer.
+- Rev 3: a mention of Claude-1.3 no longer counts as a correct correction. Released answers that mention it are flagged needs_manual_review; only a human label (premise_reviews.json) can score one as premise_corrected. Answers without it are unsupported (false) answers.
 
 Reviewer: ☐ keep as is ☐ edit (describe) ☐ drop  — correct label? ☐ yes ☐ no — notes: ______
 

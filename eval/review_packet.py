@@ -49,9 +49,11 @@ def question_block(q: EvalQuestion) -> str:
             pc = q.premise_correction
             lines.append("")
             lines.append(
-                f"**Premise correction (scored separately):** acceptable answer: {pc.get('acceptable_answer', '')} "
-                f"Counted as corrected if released and it mentions any of "
-                f"{', '.join(f'“{t}”' for t in pc.get('required_terms_any', []))}."
+                f"**Premise correction (manual review):** acceptable answer: {pc.get('acceptable_answer', '')} "
+                f"A released answer mentioning any of "
+                f"{', '.join(f'“{t}”' for t in pc.get('review_trigger_terms_any', []))} is flagged "
+                f"needs_manual_review; it counts as corrected only if a person labels it so in "
+                f"premise_reviews.json. Released answers without those terms are false answers."
             )
             for ev in pc.get("evidence", []):
                 lines.append(f"- `{ev['source']}` p.{ev['page']}: “{ev['quote']}”")

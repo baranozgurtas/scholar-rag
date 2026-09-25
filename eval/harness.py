@@ -22,8 +22,10 @@ every rate; they are never scored as zeros or ones.
 
 from __future__ import annotations
 
+import json
 import math
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 from eval.metrics import all_sources_at_k, hit_at_k, mrr_at_k, ndcg_at_k
@@ -91,18 +93,57 @@ def _mean(xs: list[float]) -> float | None:
     return sum(xs) / len(xs) if xs else None
 
 
-def premise_corrected(r: dict[str, Any]) -> bool:
-    """Released answer to a false-premise item that states the correction.
+# Statuses for released answers to false-premise items.
+PREMISE_CORRECTED = "premise_corrected"          # set only by a human label
+PREMISE_UNSUPPORTED = "unsupported_answer"       # counts as a false answer
+PREMISE_NEEDS_REVIEW = "needs_manual_review"     # neither credited nor penalised
+MANUAL_PREMISE_LABELS = {PREMISE_CORRECTED, PREMISE_UNSUPPORTED}
 
-    Requires the answer to have been released (so it carried at least one
-    citation tag matching a supplied passage) and to mention one of the
-    item's `premise_correction.required_terms_any` (case-insensitive).
+
+def premise_status(r: dict[str, Any]) -> str | None:
+    """Status of a released answer to a false-premise item (else None).
+
+    No answer is ever credited automatically. A human label in
+    `manual_premise_label` (from `premise_reviews.json`, see
+    `apply_manual_premise_labels`) decides. Without one:
+    - the answer mentions none of `premise_correction.review_trigger_terms_any`
+      → `unsupported_answer` (it cannot be stating the correction);
+    - it mentions one → `needs_manual_review` (a mention of "Claude-1.3" is not
+      evidence of a correct correction; it may still assert the false premise).
     """
     pc = r.get("premise_correction") or {}
     if not pc or r.get("abstained") or r.get("error"):
-        return False
+        return None
+    label = r.get("manual_premise_label")
+    if label is not None:
+        if label not in MANUAL_PREMISE_LABELS:
+            raise ValueError(f"{r.get('id')}: invalid manual_premise_label {label!r}")
+        return label
     answer = (r.get("answer") or "").lower()
-    return any(t.lower() in answer for t in pc.get("required_terms_any", []))
+    triggers = pc.get("review_trigger_terms_any", [])
+    return PREMISE_NEEDS_REVIEW if any(t.lower() in answer for t in triggers) else PREMISE_UNSUPPORTED
+
+
+PREMISE_REVIEWS_FILE = "premise_reviews.json"
+
+
+def load_premise_reviews(run_dir: Path) -> dict[str, str]:
+    """Human labels written next to a generation run's records, if any.
+
+    Format: {"H12": "premise_corrected" | "unsupported_answer", ...}. The file
+    is written by a person after reading the answer; nothing generates it.
+    """
+    path = run_dir / PREMISE_REVIEWS_FILE
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def apply_manual_premise_labels(records: list[dict[str, Any]], labels: dict[str, str]) -> None:
+    """Attach human labels {question_id: premise_corrected|unsupported_answer}."""
+    for r in records:
+        if r.get("id") in labels:
+            if labels[r["id"]] not in MANUAL_PREMISE_LABELS:
+                raise ValueError(f"{r['id']}: invalid label {labels[r['id']]!r}")
+            r["manual_premise_label"] = labels[r["id"]]
 
 
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -117,28 +158,37 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 
     # ── Abstention ──────────────────────────────────────────────
     false_abst = [r for r in answerable if r.get("abstained")]
-    # A released answer to a false-premise item that corrects the premise is
-    # scored separately, not as a false answer (see `premise_corrected`).
-    false_ans = [r for r in unanswerable if not r.get("abstained") and not premise_corrected(r)]
+    # False-premise answers: only a human label can credit a correction;
+    # answers awaiting review are neither false nor correct (see premise_status).
+    pending = [r for r in unanswerable if premise_status(r) == PREMISE_NEEDS_REVIEW]
+    corrected = [r for r in unanswerable if premise_status(r) == PREMISE_CORRECTED]
+    false_ans = [
+        r for r in unanswerable
+        if not r.get("abstained") and premise_status(r) not in (PREMISE_NEEDS_REVIEW, PREMISE_CORRECTED)
+    ]
     false_premise = [r for r in unanswerable if r.get("premise_correction")]
+    n_scored_unans = len(unanswerable) - len(pending)
     abstention = {
         "false_abstention_on_answerable": _rate(len(false_abst), len(answerable)),
         "false_abstention_by_outcome": dict(Counter(r.get("outcome", "?") for r in false_abst)),
-        "false_answer_on_unanswerable": _rate(len(false_ans), len(unanswerable)),
+        # Pending-review items are left out of the denominator; the upper bound
+        # counts every pending item as a false answer.
+        "false_answer_on_unanswerable": _rate(len(false_ans), n_scored_unans),
+        "false_answer_upper_bound_if_pending_are_false": _rate(len(false_ans) + len(pending), len(unanswerable)),
+        "pending_manual_review": [r.get("id") for r in pending],
         "abstention_by_outcome_on_unanswerable": dict(
             Counter(r.get("outcome", "?") for r in unanswerable if r.get("abstained"))
         ),
         "false_premise": {
             "n": len(false_premise),
             "abstained": sum(1 for r in false_premise if r.get("abstained")),
-            "premise_corrected": sum(1 for r in false_premise if premise_corrected(r)),
-            "unsupported_answer": sum(
-                1 for r in false_premise if not r.get("abstained") and not premise_corrected(r)
-            ),
+            "premise_corrected_human_labelled": len(corrected),
+            "needs_manual_review": len(pending),
+            "unsupported_answer": sum(1 for r in false_premise if premise_status(r) == PREMISE_UNSUPPORTED),
             "note": (
-                "premise_corrected = released answer (so it passed the citation policy) that "
-                "mentions one of the item's required correction terms. Keyword match, not a "
-                "judgement of the whole answer; review these by hand."
+                "No correction is credited automatically. Released answers that mention a "
+                "review-trigger term are needs_manual_review until a human labels them in "
+                "premise_reviews.json; answers without one are unsupported (false) answers."
             ),
         },
     }
@@ -186,8 +236,10 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
                 kinds.append("missing_required_source_at_5")
             if r.get("abstained"):
                 kinds.append(f"false_abstention:{r.get('outcome', '?')}")
-        elif premise_corrected(r):
-            kinds.append("premise_corrected (not a failure; check by hand)")
+        elif premise_status(r) == PREMISE_NEEDS_REVIEW:
+            kinds.append("needs_manual_review:false_premise")
+        elif premise_status(r) == PREMISE_CORRECTED:
+            pass  # human-labelled correct correction
         elif not r.get("abstained"):
             kinds.append("false_answer")
         if not r.get("error") and r.get("outcome") in WITHHELD_OUTCOMES:
@@ -409,13 +461,18 @@ def render_markdown(summaries: dict[str, dict[str, Any]], title: str, preamble: 
         "",
         "## Abstention",
         "",
-        "| Config | False abstention (answerable) | False answer (unanswerable) | False-premise items: abstained / corrected / unsupported | Errors |",
+        "| Config | False abstention (answerable) | False answer (unanswerable; pending review excluded) | False-premise items: abstained / human-labelled corrected / pending review / unsupported | Errors |",
         "|---|---|---|---|---|",
     ]
     for name, s in summaries.items():
         a = s["abstention"]
         fp = a["false_premise"]
-        fp_cell = f"{fp['abstained']} / {fp['premise_corrected']} / {fp['unsupported_answer']} (n={fp['n']})" if fp["n"] else "—"
+        fp_cell = (
+            f"{fp['abstained']} / {fp['premise_corrected_human_labelled']} / {fp['needs_manual_review']} / "
+            f"{fp['unsupported_answer']} (n={fp['n']})"
+            if fp["n"]
+            else "—"
+        )
         lines.append(
             f"| `{name}` | {_fmt_rate(a['false_abstention_on_answerable'])} | "
             f"{_fmt_rate(a['false_answer_on_unanswerable'])} | {fp_cell} | {s['counts']['n_errors']} |"
@@ -463,9 +520,12 @@ def render_markdown(summaries: dict[str, dict[str, Any]], title: str, preamble: 
 
 __all__ = [
     "FACTUAL_GROUNDING_NOTE",
+    "PREMISE_REVIEWS_FILE",
     "WITHHELD_OUTCOMES",
+    "apply_manual_premise_labels",
+    "load_premise_reviews",
     "percentile",
-    "premise_corrected",
+    "premise_status",
     "render_markdown",
     "render_retrieval_markdown",
     "round_floats",

@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from eval.harness import (
+    apply_manual_premise_labels,
+    load_premise_reviews,
     render_markdown,
     render_retrieval_markdown,
     round_floats,
@@ -55,6 +57,8 @@ def split_report(run_dir: Path) -> dict[str, Any]:
         all_recs: list[dict[str, Any]] = []
         for cfg, path in files.items():
             recs = [r for r in read_jsonl(path) if r.get("split") == split]
+            if generation:
+                apply_manual_premise_labels(recs, load_premise_reviews(run_dir))
             all_recs += recs
             per_cfg[cfg] = summarize(recs) if generation else summarize_retrieval(recs)
         out[split] = per_cfg

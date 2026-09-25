@@ -63,9 +63,9 @@ class EvalQuestion:
     absent_terms: dict[str, list[str]] = field(default_factory=dict)
     # Known problems with this question or its label (kept, not hidden).
     label_issues: list[str] = field(default_factory=list)
-    # False-premise unanswerable items: an answer that corrects the premise is
-    # scored separately from an unsupported answer. Keys: `required_terms_any`
-    # (a correction must mention one), `evidence` (same shape as `evidence`).
+    # False-premise unanswerable items. Keys: `review_trigger_terms_any` (a
+    # released answer mentioning one is sent to manual review, never credited
+    # automatically), `evidence` (same shape as `evidence`), `acceptable_answer`.
     premise_correction: dict[str, Any] = field(default_factory=dict)
     # True if this item's retrieval or generation outcomes were inspected
     # before the split was frozen, so it is NOT a pristine held-out item.

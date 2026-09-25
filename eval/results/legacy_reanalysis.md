@@ -25,7 +25,7 @@ definitions. No model was re-run. Limitations:
 
 ## Abstention
 
-| Config | False abstention (answerable) | False answer (unanswerable) | False-premise items: abstained / corrected / unsupported | Errors |
+| Config | False abstention (answerable) | False answer (unanswerable; pending review excluded) | False-premise items: abstained / human-labelled corrected / pending review / unsupported | Errors |
 |---|---|---|---|---|
 | `A_dense_only` | 3/20 (15.0%; 95% CI 5%-36%) | 0/5 (0.0%; 95% CI 0%-43%) | — | 0 |
 | `B_dense_plus_rerank` | 1/20 (5.0%; 95% CI 1%-24%) | 0/5 (0.0%; 95% CI 0%-43%) | — | 0 |

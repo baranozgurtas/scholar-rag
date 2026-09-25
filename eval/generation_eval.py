@@ -30,7 +30,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from eval.harness import render_markdown, round_floats, summarize
+from eval.harness import (
+    apply_manual_premise_labels,
+    load_premise_reviews,
+    render_markdown,
+    round_floats,
+    summarize,
+)
 from eval.retrieval_ablation import (
     CONFIG_BY_NAME,
     QUESTION_KEYS,
@@ -161,6 +167,7 @@ def run_generation_eval(retrieval_run: Path, config: str, out_dir: Path | None =
         print(f"[generation:{config}] {i}/{len(ranked)} {rr['id']} outcome={gate or result.outcome}", flush=True)
 
     records = read_jsonl(records_path)
+    apply_manual_premise_labels(records, load_premise_reviews(out_dir))
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps(round_floats(summary), indent=2, ensure_ascii=False) + "\n")
     preamble = (

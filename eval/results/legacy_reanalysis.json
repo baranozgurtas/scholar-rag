@@ -49,15 +49,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
       },
       "false_premise": {
         "n": 0,
         "abstained": 0,
-        "premise_corrected": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
         "unsupported_answer": 0,
-        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
@@ -213,15 +224,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
       },
       "false_premise": {
         "n": 0,
         "abstained": 0,
-        "premise_corrected": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
         "unsupported_answer": 0,
-        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
@@ -340,15 +362,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
       },
       "false_premise": {
         "n": 0,
         "abstained": 0,
-        "premise_corrected": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
         "unsupported_answer": 0,
-        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
@@ -502,15 +535,26 @@
           0.4345
         ]
       },
+      "false_answer_upper_bound_if_pending_are_false": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "pending_manual_review": [],
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
       },
       "false_premise": {
         "n": 0,
         "abstained": 0,
-        "premise_corrected": 0,
+        "premise_corrected_human_labelled": 0,
+        "needs_manual_review": 0,
         "unsupported_answer": 0,
-        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
+        "note": "No correction is credited automatically. Released answers that mention a review-trigger term are needs_manual_review until a human labels them in premise_reviews.json; answers without one are unsupported (false) answers."
       }
     },
     "citations": {
