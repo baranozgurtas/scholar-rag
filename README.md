@@ -2,7 +2,7 @@
 
 **Citation-enforced question answering over ML research papers, with reproducible retrieval evaluation.**
 
-Scholar RAG answers questions about a corpus of 15 machine-learning papers. It retrieves with BGE-M3 dense and sparse vectors fused by Reciprocal Rank Fusion, reranks with a BGE cross-encoder, and generates with Qwen2.5:7b. Every answer must cite the passages it was given, or it is not released. A FastAPI service serves the answers and a web UI that shows the evidence behind each one. An evaluation harness records every run, from models and index to commit and question-file hash, and CI checks it deterministically.
+Scholar RAG answers questions about a corpus of 15 machine-learning papers. It retrieves with BGE-M3 dense and sparse vectors fused by Reciprocal Rank Fusion, reranks with a BGE cross-encoder, and generates with Qwen2.5:7b. Released answers require at least one citation tag matching a supplied passage. That check is structural: it shows the cited page was in the model's context, not that the passage supports the claim. A FastAPI service serves the answers and a web UI that shows the evidence behind each one. An evaluation harness records every run, from models and index to commit and question-file hash, and CI checks it deterministically.
 
 [![CI](https://github.com/baranozgurtas/scholar-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/baranozgurtas/scholar-rag/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
@@ -14,18 +14,6 @@ Scholar RAG answers questions about a corpus of 15 machine-learning papers. It r
 - **Enforced citation policy**: an answer is released only if it carries at least one citation tag and every tag matches a supplied passage. Otherwise the user gets an explicit refusal with a recorded reason.
 - **Evidence-first UI**: citation pills link to the cited chunk, alongside dense, sparse and rerank scores.
 - **Reproducible evaluation**: retrieval-only ablations, a resumable generation evaluation, per-run manifests, and a model-free CI suite.
-
----
-
-## Demo
-
-**A cited answer with per-chunk dense, sparse and rerank scores.**
-
-<img width="1440" height="850" alt="Cited answer with retrieved sources and score breakdown" src="https://github.com/user-attachments/assets/1f717c77-fc2f-4f65-bc00-e3d6e8b91ecc" />
-
-**A comparative question answered from two papers (NCF and BPR).**
-
-<img width="1439" height="816" alt="Answer citing both the NCF and BPR papers" src="https://github.com/user-attachments/assets/caaf3857-2325-456b-8336-4fc0da8576eb" />
 
 ---
 
@@ -85,6 +73,9 @@ These are retrieval measurements. They do not rank the configurations overall, a
 
 An earlier end-to-end run on 20 LLM-generated answerable questions and 5 off-topic questions, before the citation policy existed. Re-derived from the committed JSONs by `python -m eval.reanalyze_legacy` and checked in CI. Only five ranks were stored, so ranking metrics are @5. See [`legacy_reanalysis.md`](eval/results/legacy_reanalysis.md) for caveats.
 
+<details>
+<summary>Historical results table (4 configurations, legacy 25-question set)</summary>
+
 <!-- METRICS:ABLATION:START -->
 | Config | Hit@5 | MRR@5 | nDCG@5 | False abstention (answerable) | Answered unanswerable | p50 / p95 latency (s) |
 |---|---|---|---|---|---|---|
@@ -93,6 +84,8 @@ An earlier end-to-end run on 20 LLM-generated answerable questions and 5 off-top
 | `C_hybrid_no_rerank` Hybrid (RRF), no rerank | 0.950 | 0.950 | 0.950 | 3/20 | 0/5 | 5.6 / 9.3 |
 | `D_hybrid_plus_rerank` Hybrid + rerank (API default) | 0.950 | 0.950 | 0.950 | 0/20 | 0/5 | 6.8 / 10.3 |
 <!-- METRICS:ABLATION:END -->
+
+</details>
 
 ---
 
