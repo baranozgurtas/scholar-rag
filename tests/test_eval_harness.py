@@ -224,3 +224,14 @@ class TestSerialization:
 
         committed = json.loads((RESULTS_DIR / "legacy_reanalysis.json").read_text())
         assert committed == json.loads(json.dumps(round_floats(reanalyze())))
+
+
+class TestReviewPacket:
+    def test_packet_lists_every_question_and_claims_no_review(self) -> None:
+        from eval.review_packet import build_packet
+
+        text = build_packet(QUESTIONS_V2_DRAFT_PATH)
+        for q in load_questions(QUESTIONS_V2_DRAFT_PATH):
+            assert f"### {q.id} ·" in text
+        assert "Nothing here is human-reviewed" in text
+        assert "review status: unreviewed" in text
