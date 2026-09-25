@@ -3,6 +3,15 @@
 # Lines starting with # are ignored. Cluster names are free-form for grouping
 # in eval reports. The downloader fetches each by arxiv_id and saves it as
 # <short_alias>.pdf under data/pdfs/.
+#
+# Label corrections (2026-09): two aliases did not match the arXiv IDs.
+#   1207.0580  was "dropout-srivastava-2014"; it is Hinton et al. 2012,
+#              "Improving neural networks by preventing co-adaptation of
+#              feature detectors" (not the 2014 JMLR Dropout paper).
+#   2012.05345 was "ml-tips-domingos-2012"; it is Paullada et al. 2020,
+#              "Data and its (dis)contents" (not Domingos 2012).
+# Results committed before the rename (eval/results/ablation_*.json) use the
+# old aliases. Re-run `make ingest` with a recreated collection after pulling.
 
 # ─── Cluster A: RAG / Retrieval / LLMs ────────────────────────────
 2005.11401  rag-lewis-2020              rag_retrieval_llms
@@ -20,7 +29,7 @@
 
 # ─── Cluster C: Foundational ML / Stats / Causal ──────────────────
 1603.02754  xgboost-chen-2016           classical_ml
-1207.0580   dropout-srivastava-2014     classical_ml
+1207.0580   dropout-hinton-2012         classical_ml
 1412.6980   adam-kingma-2014            classical_ml
 1510.04342  causal-forest-wager-2018    classical_ml
-2012.05345  ml-tips-domingos-2012       classical_ml
+2012.05345  data-discontents-paullada-2020  classical_ml

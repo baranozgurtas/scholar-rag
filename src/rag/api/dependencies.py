@@ -10,18 +10,18 @@ app lifespan, so module-import doesn't pull in torch/transformers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from rag.config import Settings, get_settings
-from rag.embeddings.bge_embedder import BGEEmbedder, build_embedder
-from rag.generation.rag_chain import RAGChain, build_rag_chain_from_settings
 from rag.logging_config import get_logger
-from rag.observability.langfuse_tracer import LangfuseTracer
-from rag.observability.token_counter import TokenLedger
-from rag.retrieval.dense_retriever import DenseRetriever
-from rag.retrieval.hybrid_retriever import HybridRetriever
-from rag.retrieval.reranker import CrossEncoderReranker
-from rag.retrieval.sparse_retriever import SparseRetriever
-from rag.vectorstore.qdrant_store import QdrantStore
+
+if TYPE_CHECKING:
+    from rag.embeddings.bge_embedder import BGEEmbedder
+    from rag.generation.rag_chain import RAGChain
+    from rag.observability.langfuse_tracer import LangfuseTracer
+    from rag.observability.token_counter import TokenLedger
+    from rag.retrieval.reranker import CrossEncoderReranker
+    from rag.vectorstore.qdrant_store import QdrantStore
 
 logger = get_logger(__name__)
 
@@ -47,6 +47,18 @@ def init_state() -> AppState:
     global _state
     if _state is not None:
         return _state
+
+    # Imported here so that importing the API module (e.g. in tests with an
+    # injected state) does not pull in torch / FlagEmbedding.
+    from rag.embeddings.bge_embedder import build_embedder
+    from rag.generation.rag_chain import build_rag_chain_from_settings
+    from rag.observability.langfuse_tracer import LangfuseTracer
+    from rag.observability.token_counter import TokenLedger
+    from rag.retrieval.dense_retriever import DenseRetriever
+    from rag.retrieval.hybrid_retriever import HybridRetriever
+    from rag.retrieval.reranker import CrossEncoderReranker
+    from rag.retrieval.sparse_retriever import SparseRetriever
+    from rag.vectorstore.qdrant_store import QdrantStore
 
     settings = get_settings()
     logger.info("init_state_start")
@@ -88,10 +100,16 @@ def get_state() -> AppState:
     return _state
 
 
+def set_state(state: AppState) -> None:
+    """Install a prebuilt AppState (tests, or embedding the app elsewhere)."""
+    global _state
+    _state = state
+
+
 def reset_state() -> None:
     """Test helper: tear down the singleton."""
     global _state
     _state = None
 
 
-__all__ = ["AppState", "get_state", "init_state", "reset_state"]
+__all__ = ["AppState", "get_state", "init_state", "reset_state", "set_state"]

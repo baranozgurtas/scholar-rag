@@ -62,6 +62,16 @@ class TestNDCGAtK:
     def test_no_match_returns_zero(self) -> None:
         assert ndcg_at_k(["x.pdf"], ["a"], k=10) == 0.0
 
+    def test_repeated_chunks_of_same_paper_count_once(self) -> None:
+        # Five chunks of the single relevant paper must not push nDCG above 1.
+        assert ndcg_at_k(["a.pdf"] * 5, ["a"], k=10) == pytest.approx(1.0)
+
+    def test_two_expected_papers(self) -> None:
+        v = ndcg_at_k(["a.pdf", "a.pdf", "b.pdf"], ["a", "b"], k=10)
+        dcg = 1.0 + 1 / math.log2(4)
+        idcg = 1.0 + 1 / math.log2(3)
+        assert v == pytest.approx(dcg / idcg)
+
 
 class TestAggregate:
     def test_aggregate_across_questions(self) -> None:

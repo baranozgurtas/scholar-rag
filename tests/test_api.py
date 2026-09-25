@@ -36,6 +36,9 @@ def mock_app_state() -> AppState:
                                 "total_ms": 950}
     response_obj.prompt_version = "rag_answer@1.2"
     response_obj.config_summary = {"use_reranker": True}
+    response_obj.outcome = "answered"
+    response_obj.top_rerank_score = 0.9
+    response_obj.raw_answer = "mocked answer [Paper: BGE-M3 | p.1 | §abstract]"
     response_obj.to_dict.return_value = {
         "question": "q", "answer": "mocked answer", "abstained": False,
         "citations": response_obj.citations, "citation_check": response_obj.citation_check,
@@ -77,7 +80,7 @@ def client(mock_app_state: AppState) -> TestClient:
     """TestClient with `get_state` overridden to return the mocked state."""
     from rag.api.main import create_app
 
-    app = create_app()
+    app = create_app(state=mock_app_state)
     app.dependency_overrides[get_state] = lambda: mock_app_state
     with TestClient(app) as c:
         yield c

@@ -13,14 +13,16 @@ upserts. This is the configuration BGE-M3 was designed for.
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from qdrant_client import QdrantClient, models
 
 from rag.config import VectorStoreSettings, get_settings
-from rag.embeddings.bge_embedder import BGEEmbedder
 from rag.ingestion.chunker import Chunk
 from rag.logging_config import get_logger
+
+if TYPE_CHECKING:  # avoid importing torch/FlagEmbedding at module import
+    from rag.embeddings.bge_embedder import BGEEmbedder
 
 logger = get_logger(__name__)
 
@@ -38,12 +40,15 @@ class QdrantStore:
     ) -> None:
         self.settings = settings or get_settings().vectorstore
         self.embedder = embedder
-        self.client = QdrantClient(
-            url=self.settings.url,
-            api_key=self.settings.api_key,
-            prefer_grpc=self.settings.prefer_grpc,
-            timeout=60,
-        )
+        if self.settings.path:
+            self.client = QdrantClient(path=self.settings.path)
+        else:
+            self.client = QdrantClient(
+                url=self.settings.url,
+                api_key=self.settings.api_key,
+                prefer_grpc=self.settings.prefer_grpc,
+                timeout=60,
+            )
         self.collection_name = self.settings.collection
 
     # ─── Collection lifecycle ──────────────────────────────────────

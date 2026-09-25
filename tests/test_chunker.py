@@ -92,3 +92,38 @@ class TestSectionAwareChunker:
         lc = chunks[0].to_langchain()
         assert lc.page_content == chunks[0].text
         assert lc.metadata["source"] == "test_paper.pdf"
+
+
+class TestLowContentFilter:
+    """Figure debris like the causal-forest p.21 scatter markers must not be indexed."""
+
+    def test_repeated_marker_chunk_is_debris(self) -> None:
+        from rag.ingestion.chunker import is_low_content
+
+        assert is_low_content("G\n" * 400)
+        assert is_low_content("0.2\n0.4\n0.6\n0.8\n1.0\n" + "G\n" * 200)
+
+    def test_numeric_results_table_is_kept(self) -> None:
+        from rag.ingestion.chunker import is_low_content
+
+        table = "Model Avg ar bn en es BM25 67.3 78.7 90.0 63.6 25.4 68.1 81.2 50.2 73.8 " * 3
+        assert not is_low_content(table)
+
+    def test_prose_and_short_text_are_kept(self) -> None:
+        from rag.ingestion.chunker import is_low_content
+
+        assert not is_low_content("Adam combines momentum with per-parameter adaptive learning rates. " * 5)
+        assert not is_low_content("G G G")  # too short to judge
+
+    def test_post_process_drops_debris_and_reindexes(self) -> None:
+        from rag.ingestion.chunker import Chunk, SectionAwareChunker
+
+        meta = {"file_hash": "abcd1234ffff", "chunk_idx": 0}
+        chunks = [
+            Chunk(text="Real sentence about optimisation methods and results. " * 3, metadata=dict(meta)),
+            Chunk(text="G\n" * 300, metadata=dict(meta)),
+            Chunk(text="Another real passage on learning rate schedules and decay. " * 3, metadata=dict(meta)),
+        ]
+        out = SectionAwareChunker._post_process(chunks)
+        assert len(out) == 2
+        assert [c.metadata["chunk_id"] for c in out] == ["abcd1234_0000", "abcd1234_0001"]

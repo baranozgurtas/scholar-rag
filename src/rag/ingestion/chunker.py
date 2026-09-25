@@ -16,6 +16,7 @@ faithfulness on long-form scientific documents.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,6 +39,26 @@ class Chunk:
 
     def to_langchain(self) -> Document:
         return Document(page_content=self.text, metadata=self.metadata)
+
+
+# PDF figure debris (e.g. scatter-plot markers extracted as "G\nG\nG...") has
+# almost no distinct tokens AND almost no real words. On the 15-paper corpus
+# this flags exactly the 151 marker chunks from one causal-forest figure
+# (p.21); numeric results tables have many distinct tokens and are kept.
+MIN_DISTINCT_TOKEN_RATIO = 0.1
+MIN_WORD_CHAR_RATIO = 0.2
+MIN_TOKENS_FOR_DIVERSITY_CHECK = 20
+_WORD_RE = re.compile(r"[A-Za-z]{3,}")
+
+
+def is_low_content(text: str) -> bool:
+    """True for extraction debris: many tokens, few distinct, few real words."""
+    tokens = text.split()
+    if len(tokens) < MIN_TOKENS_FOR_DIVERSITY_CHECK:
+        return False
+    distinct_ratio = len(set(tokens)) / len(tokens)
+    word_chars = sum(len(w) for w in _WORD_RE.findall(text))
+    return distinct_ratio < MIN_DISTINCT_TOKEN_RATIO and word_chars / len(text) < MIN_WORD_CHAR_RATIO
 
 
 class SectionAwareChunker:
@@ -134,8 +155,13 @@ class SectionAwareChunker:
 
     @staticmethod
     def _post_process(chunks: list[Chunk]) -> list[Chunk]:
-        """Drop empty / tiny chunks and reindex."""
-        filtered = [c for c in chunks if len(c.text.strip()) >= 50]
+        """Drop empty / tiny / debris chunks and reindex."""
+        filtered = [
+            c for c in chunks if len(c.text.strip()) >= 50 and not is_low_content(c.text)
+        ]
+        n_debris = sum(1 for c in chunks if is_low_content(c.text))
+        if n_debris:
+            logger.info("low_content_chunks_dropped", count=n_debris)
         for i, c in enumerate(filtered):
             c.metadata["chunk_idx"] = i
             c.metadata["chunk_id"] = f"{c.metadata['file_hash'][:8]}_{i:04d}"
@@ -157,4 +183,4 @@ class SectionAwareChunker:
         return all_chunks
 
 
-__all__ = ["Chunk", "SectionAwareChunker"]
+__all__ = ["Chunk", "SectionAwareChunker", "is_low_content"]

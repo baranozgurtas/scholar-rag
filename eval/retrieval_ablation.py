@@ -1,279 +1,415 @@
-"""4-config retrieval ablation.
+"""Retrieval-only 4-config ablation. No generator (Qwen) is called.
 
-Compares:
-    A) Dense-only            (baseline)
-    B) Dense + Reranker
-    C) Hybrid (Dense + Sparse via RRF)
-    D) Hybrid + Reranker     (production config)
+    A) Dense-only            B) Dense + reranker
+    C) Hybrid (dense+sparse) D) Hybrid + reranker (API default)
 
-Each config is run against the loaded question set. We report:
-    Hit@5, Hit@10, MRR@10, nDCG@10, abstention_rate
+B reranks A's candidates and D reranks C's, so the run has two phases and
+never holds the embedder and the reranker in memory together:
 
-The ablation table is the bread and butter of the CV bullet — it shows
-the precision uplift from adding hybrid retrieval AND a cross-encoder
-reranker, both in numerical terms a recruiter or interviewer can ask about.
+  Phase 1 (embedder only): for each question, the top `RETRIEVAL_HYBRID_TOP_K`
+      candidates for "dense" and "hybrid", with text and scores
+      → candidates_dense.jsonl, candidates_hybrid.jsonl
+  Phase 2 (reranker only, embedder released): rerank saved candidates
+      → ranked_<config>.jsonl (top RANKING_DEPTH=10 per question)
+
+Every file is appended one question at a time and flushed, so an interrupted
+run resumes with `--run-dir <existing dir>`; finished questions are skipped.
+Output also holds manifest.json, summary.json and report.md.
+
+    python -m eval.retrieval_ablation                                   # legacy 25
+    python -m eval.retrieval_ablation --questions eval/questions_v2_draft.jsonl
+    python -m eval.retrieval_ablation --run-dir eval/results/runs/<dir>   # resume
+
+Generation is evaluated separately for one config: `eval.generation_eval`.
 """
 
 from __future__ import annotations
 
 import argparse
+import gc
 import json
+import os
+import platform
+import subprocess
 import sys
+import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from eval.generate_questions import EvalQuestion
-from eval.metrics import compute_retrieval_metrics
-from rag.config import get_settings
-from rag.embeddings.bge_embedder import build_embedder
-from rag.generation.rag_chain import RAGChain
-from rag.logging_config import configure_logging, get_logger
-from rag.retrieval.dense_retriever import DenseRetriever
-from rag.retrieval.hybrid_retriever import HybridRetrievalConfig, HybridRetriever
-from rag.retrieval.reranker import CrossEncoderReranker
-from rag.retrieval.sparse_retriever import SparseRetriever
-from rag.vectorstore.qdrant_store import QdrantStore
+from eval.harness import render_retrieval_markdown, summarize_retrieval
+from eval.questions import PDF_DIR, QUESTIONS_PATH, EvalQuestion, file_sha256, load_questions
 
-logger = get_logger(__name__)
-
-QUESTIONS_PATH = Path(__file__).resolve().parent / "questions.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+RUNS_DIR = RESULTS_DIR / "runs"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RANKING_DEPTH = 10
 
 
-@dataclass
-class ConfigResult:
-    """Ablation result for one configuration."""
-
+@dataclass(frozen=True)
+class AblationConfig:
     name: str
     description: str
-    metrics: dict[str, float]
-    raw_per_question: list[dict[str, Any]]
+    candidates: str  # "dense" | "hybrid"
+    use_reranker: bool
 
 
-def load_questions(path: Path = QUESTIONS_PATH) -> list[EvalQuestion]:
-    """Load eval questions from JSONL, skipping un-filled manual templates."""
+CONFIGS: list[AblationConfig] = [
+    AblationConfig("A_dense_only", "Dense only", "dense", False),
+    AblationConfig("B_dense_plus_rerank", "Dense + cross-encoder reranker", "dense", True),
+    AblationConfig("C_hybrid_no_rerank", "Hybrid (dense + sparse, RRF)", "hybrid", False),
+    AblationConfig("D_hybrid_plus_rerank", "Hybrid + cross-encoder reranker", "hybrid", True),
+]
+CONFIG_BY_NAME = {c.name: c for c in CONFIGS}
+
+
+class PreflightError(RuntimeError):
+    """A required service, model or index is unavailable; no metrics are produced."""
+
+
+# ─── Small I/O helpers ────────────────────────────────────────────
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
-        raise FileNotFoundError(f"Question set not found: {path}. Run `make generate-questions` first.")
-    questions: list[EvalQuestion] = []
-    skipped = 0
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def append_jsonl(path: Path, record: dict[str, Any]) -> None:
+    """Append one record and force it to disk (crash-safe resume)."""
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def done_ids(path: Path) -> set[str]:
+    return {r["id"] for r in read_jsonl(path)}
+
+
+def source_alias(source: str) -> str:
+    return source[:-4] if source.lower().endswith(".pdf") else source
+
+
+# ─── Manifest ─────────────────────────────────────────────────────
+
+
+def _git(*args: str) -> str | None:
+    try:
+        return subprocess.run(
+            ["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def package_versions(names: list[str]) -> dict[str, str | None]:
+    out: dict[str, str | None] = {}
+    for n in names:
         try:
-            d = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        # Skip placeholders the user hasn't filled in
-        if d.get("question", "").startswith("[FILL IN]"):
-            skipped += 1
-            continue
-        questions.append(EvalQuestion(**d))
-    logger.info("questions_loaded", n=len(questions), skipped_placeholders=skipped)
-    return questions
+            out[n] = metadata.version(n)
+        except metadata.PackageNotFoundError:
+            out[n] = None
+    return out
 
 
-def _build_chain(
-    store: QdrantStore,
-    embedder,
-    use_dense: bool,
-    use_sparse: bool,
-    use_reranker: bool,
-    reranker: CrossEncoderReranker | None,
-) -> RAGChain:
-    """Build a RAGChain with a custom hybrid config (for ablation)."""
-    settings = get_settings()
-    dense = DenseRetriever(store=store, embedder=embedder)
-    sparse = SparseRetriever(store=store, embedder=embedder)
-    hybrid_cfg = HybridRetrievalConfig(
-        dense_top_k=settings.retrieval.dense_top_k,
-        sparse_top_k=settings.retrieval.sparse_top_k,
-        rrf_k=settings.retrieval.rrf_k,
-        final_top_k=settings.retrieval.hybrid_top_k,
-        use_dense=use_dense,
-        use_sparse=use_sparse,
-    )
-    hybrid = HybridRetriever(dense=dense, sparse=sparse, config=hybrid_cfg)
-    return RAGChain(
-        hybrid=hybrid,
-        reranker=reranker,
-        retrieval_settings=settings.retrieval,
-        use_reranker=use_reranker,
-    )
+def git_state() -> dict[str, Any]:
+    status = _git("status", "--porcelain")
+    return {
+        "commit": _git("rev-parse", "HEAD"),
+        "dirty": bool(status),
+        "n_modified_paths": len(status.splitlines()) if status else 0,
+    }
 
 
-def run_one_config(
-    name: str,
-    description: str,
-    chain: RAGChain,
+def build_manifest(
+    settings: Any,
+    questions_path: Path,
     questions: list[EvalQuestion],
-) -> ConfigResult:
-    """Run one config over all questions and compute metrics."""
-    per_q_sources: list[list[str]] = []
-    per_q_expected: list[list[str]] = []
-    abstentions: list[bool] = []
-    raw: list[dict[str, Any]] = []
+    collection_stats: dict[str, Any],
+    configs: list[AblationConfig],
+) -> dict[str, Any]:
+    pdfs = sorted(PDF_DIR.glob("*.pdf"))
+    qpath = questions_path.resolve()
+    return {
+        "kind": "retrieval_only",
+        "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        "git": git_state(),
+        "models": {
+            "embedding": settings.embedding.model_name,
+            "reranker": settings.embedding.reranker_model,
+            "embedding_device": settings.embedding.device,
+            "reranker_device": settings.embedding.reranker_device,
+            "generator": None,  # not used by this run
+        },
+        "retrieval_settings": settings.retrieval.model_dump(),
+        "chunking_settings": settings.chunking.model_dump(),
+        "ranking_depth": RANKING_DEPTH,
+        "configs": [c.__dict__ for c in configs],
+        "corpus": {
+            "n_pdfs": len(pdfs),
+            "pdfs": {p.stem: file_sha256(p)[:16] for p in pdfs},
+            "qdrant_backend": (
+                f"embedded:{settings.vectorstore.path}" if settings.vectorstore.path else settings.vectorstore.url
+            ),
+            "qdrant_collection": collection_stats.get("collection"),
+            "qdrant_points": collection_stats.get("points_count"),
+            "qdrant_unique_sources": collection_stats.get("unique_sources"),
+        },
+        "questions": {
+            "path": str(qpath.relative_to(PROJECT_ROOT)) if qpath.is_relative_to(PROJECT_ROOT) else str(qpath),
+            "sha256": file_sha256(questions_path),
+            "n": len(questions),
+            "n_answerable": sum(q.answerable for q in questions),
+            "n_unanswerable": sum(not q.answerable for q in questions),
+            "review_status": {
+                s: sum(q.review_status == s for q in questions) for s in sorted({q.review_status for q in questions})
+            },
+        },
+        "environment": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "packages": package_versions(
+                ["torch", "FlagEmbedding", "transformers", "qdrant-client", "langchain-ollama"]
+            ),
+        },
+    }
 
-    for i, q in enumerate(questions, start=1):
-        resp = chain.answer(q.question, debug=False)
-        retrieved_sources = [c["source"] for c in resp.retrieved_chunks]
-        per_q_sources.append(retrieved_sources)
-        per_q_expected.append(q.expected_sources)
-        abstentions.append(resp.abstained)
-        raw.append(
-            {
-                "question": q.question,
-                "expected_sources": q.expected_sources,
-                "source_kind": q.source_kind,
-                "retrieved_sources": retrieved_sources,
-                "abstained": resp.abstained,
-                "n_chunks": len(resp.retrieved_chunks),
-                "latency_ms": resp.latency_ms,
-            }
-        )
-        if i % 10 == 0:
-            logger.info("ablation_progress", config=name, done=i, total=len(questions))
 
-    metrics = compute_retrieval_metrics(per_q_sources, per_q_expected, abstentions)
-    # Adversarial abstention rate: fraction of adversarial questions that abstained
-    adv_indices = [i for i, q in enumerate(questions) if q.source_kind == "adversarial"]
-    if adv_indices:
-        adv_abstention = sum(abstentions[i] for i in adv_indices) / len(adv_indices)
-        metrics_dict = metrics.to_dict() | {
-            "adversarial_abstention_rate": round(adv_abstention, 4),
-            "n_adversarial": len(adv_indices),
-        }
-    else:
-        metrics_dict = metrics.to_dict()
-
-    return ConfigResult(
-        name=name, description=description, metrics=metrics_dict, raw_per_question=raw
-    )
-
-
-def run_ablation(questions: list[EvalQuestion]) -> list[ConfigResult]:
-    """Run all 4 ablation configs and return their results."""
-    settings = get_settings()
-    embedder = build_embedder(settings.embedding)
-    store = QdrantStore(embedder=embedder, settings=settings.vectorstore)
-    store.ensure_collection(recreate=False)
-    reranker = CrossEncoderReranker(settings=settings.embedding)
-
-    configs = [
-        ("A_dense_only", "Dense-only baseline (no sparse, no reranker)",
-         {"use_dense": True, "use_sparse": False, "use_reranker": False}),
-        ("B_dense_plus_rerank", "Dense + cross-encoder reranker",
-         {"use_dense": True, "use_sparse": False, "use_reranker": True}),
-        ("C_hybrid_no_rerank", "Hybrid (dense + sparse, RRF) without reranker",
-         {"use_dense": True, "use_sparse": True, "use_reranker": False}),
-        ("D_hybrid_plus_rerank", "Hybrid + cross-encoder reranker (production)",
-         {"use_dense": True, "use_sparse": True, "use_reranker": True}),
+def check_resume_compatible(old: dict[str, Any], new: dict[str, Any]) -> None:
+    """Refuse to resume if anything that affects results changed."""
+    keys = [
+        ("questions", "sha256"),
+        ("models", "embedding"),
+        ("models", "reranker"),
+        ("corpus", "qdrant_points"),
+        ("corpus", "pdfs"),
+        ("retrieval_settings",),
+        ("chunking_settings",),
     ]
-
-    results: list[ConfigResult] = []
-    for name, desc, kwargs in configs:
-        logger.info("ablation_config_start", name=name)
-        chain = _build_chain(store=store, embedder=embedder, reranker=reranker, **kwargs)
-        res = run_one_config(name=name, description=desc, chain=chain, questions=questions)
-        results.append(res)
-        logger.info("ablation_config_done", name=name, metrics=res.metrics)
-
-    return results
+    for path in keys:
+        a, b = old, new
+        for k in path:
+            a, b = a.get(k), b.get(k)
+        if a != b:
+            raise PreflightError(f"Cannot resume: {'.'.join(path)} changed ({a!r} -> {b!r}).")
 
 
-def write_results(results: list[ConfigResult], out_dir: Path = RESULTS_DIR) -> None:
-    """Write per-config raw JSON + a single markdown summary table."""
-    out_dir.mkdir(parents=True, exist_ok=True)
+# ─── Records ──────────────────────────────────────────────────────
 
-    # Per-config JSON dumps (raw + metrics)
-    for r in results:
-        path = out_dir / f"ablation_{r.name}.json"
-        path.write_text(
-            json.dumps(
-                {
-                    "name": r.name,
-                    "description": r.description,
-                    "metrics": r.metrics,
-                    "per_question": r.raw_per_question,
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
+
+def question_fields(q: EvalQuestion) -> dict[str, Any]:
+    return {
+        "id": q.id,
+        "question": q.question,
+        "split": q.split,
+        "review_status": q.review_status,
+        "source_kind": q.source_kind,
+        "expected_sources": q.expected_sources,
+    }
+
+
+def ranked_record(
+    cand: dict[str, Any], config: AblationConfig, ranked: list[Any], rerank_ms: float, final_top_k: int
+) -> dict[str, Any]:
+    """Per-question ranking record. `ranked` is a list of RetrievedChunk."""
+    rec = {k: cand[k] for k in ("id", "question", "split", "review_status", "source_kind", "expected_sources")}
+    rec |= {
+        "config": config.name,
+        "ranked_sources": [source_alias(c.source) for c in ranked],
+        # Text is kept only for the chunks the generator would see.
+        "ranked": [c.to_record(include_text=i < final_top_k) for i, c in enumerate(ranked)],
+        "top_rerank_score": ranked[0].score if (config.use_reranker and ranked) else None,
+        "top_dense_score": cand.get("top_dense_score"),
+        "latency_ms": {"retrieval_ms": cand["retrieval_ms"], "rerank_ms": rerank_ms},
+        "error": None,
+    }
+    return rec
+
+
+# ─── Phases ───────────────────────────────────────────────────────
+
+
+def phase1_candidates(
+    run_dir: Path, questions: list[EvalQuestion], kinds: list[str], settings: Any, store: Any, embedder: Any
+) -> None:
+    """Embedder only: save top-k candidates for each candidate kind."""
+    from rag.retrieval.dense_retriever import DenseRetriever
+    from rag.retrieval.hybrid_retriever import HybridRetrievalConfig, HybridRetriever
+    from rag.retrieval.sparse_retriever import SparseRetriever
+
+    r = settings.retrieval
+    for kind in kinds:
+        hybrid = HybridRetriever(
+            dense=DenseRetriever(store=store, embedder=embedder),
+            sparse=SparseRetriever(store=store, embedder=embedder),
+            config=HybridRetrievalConfig(
+                dense_top_k=r.dense_top_k,
+                sparse_top_k=r.sparse_top_k,
+                rrf_k=r.rrf_k,
+                final_top_k=r.hybrid_top_k,
+                use_dense=True,
+                use_sparse=(kind == "hybrid"),
+            ),
         )
+        path = run_dir / f"candidates_{kind}.jsonl"
+        finished = done_ids(path)
+        for i, q in enumerate(questions, start=1):
+            if q.id in finished:
+                continue
+            t0 = time.perf_counter()
+            cands = hybrid.retrieve(q.question, top_k=r.hybrid_top_k)
+            ms = (time.perf_counter() - t0) * 1000
+            dense_scores = [c.score_breakdown.get("dense_score") for c in cands]
+            dense_scores = [s for s in dense_scores if s]
+            append_jsonl(
+                path,
+                question_fields(q)
+                | {
+                    "kind": kind,
+                    "candidates": [c.to_record() for c in cands],
+                    "top_dense_score": max(dense_scores) if dense_scores else None,
+                    "retrieval_ms": ms,
+                },
+            )
+            print(f"[candidates:{kind}] {i}/{len(questions)} {q.id}", flush=True)
 
-    # Markdown summary
-    md_lines: list[str] = []
-    md_lines.append("# Retrieval Ablation Results\n")
-    md_lines.append("Four configurations evaluated on the same question set. "
-                     "Bold = best per column.\n")
 
-    header_cols = ["Config", "Description", "Hit@5", "Hit@10", "MRR@10",
-                   "nDCG@10", "Abstain%", "Adv.Abstain%"]
-    md_lines.append("| " + " | ".join(header_cols) + " |")
-    md_lines.append("|" + "|".join(["---"] * len(header_cols)) + "|")
+def phase2_rank(run_dir: Path, configs: list[AblationConfig], settings: Any, reranker: Any | None) -> None:
+    """Reranker only (or no model): turn saved candidates into top-10 rankings."""
+    from rag.retrieval.types import RetrievedChunk
 
-    # Find best per metric for bolding
-    metric_keys = ["hit_at_5", "hit_at_10", "mrr_at_10", "ndcg_at_10"]
-    best_per_metric = {k: max(r.metrics.get(k, 0.0) for r in results) for k in metric_keys}
-    best_adv = max(r.metrics.get("adversarial_abstention_rate", 0.0) for r in results)
+    final_top_k = settings.retrieval.final_top_k
+    for cfg in configs:
+        cands = read_jsonl(run_dir / f"candidates_{cfg.candidates}.jsonl")
+        path = run_dir / f"ranked_{cfg.name}.jsonl"
+        finished = done_ids(path)
+        for i, cand in enumerate(cands, start=1):
+            if cand["id"] in finished:
+                continue
+            chunks = [RetrievedChunk.from_record(d) for d in cand["candidates"]]
+            t0 = time.perf_counter()
+            if cfg.use_reranker and chunks:
+                assert reranker is not None
+                ranked = reranker.rerank(query=cand["question"], candidates=chunks, top_k=RANKING_DEPTH)
+            else:
+                ranked = chunks[:RANKING_DEPTH]
+            ms = (time.perf_counter() - t0) * 1000 if cfg.use_reranker else 0.0
+            append_jsonl(path, ranked_record(cand, cfg, ranked, ms, final_top_k))
+            print(f"[{cfg.name}] {i}/{len(cands)} {cand['id']}", flush=True)
 
-    def fmt(value: float, key: str, best: float) -> str:
-        s = f"{value:.3f}"
-        if abs(value - best) < 1e-6:
-            return f"**{s}**"
-        return s
 
-    for r in results:
-        row = [
-            f"`{r.name}`",
-            r.description,
-            fmt(r.metrics.get("hit_at_5", 0), "hit_at_5", best_per_metric["hit_at_5"]),
-            fmt(r.metrics.get("hit_at_10", 0), "hit_at_10", best_per_metric["hit_at_10"]),
-            fmt(r.metrics.get("mrr_at_10", 0), "mrr_at_10", best_per_metric["mrr_at_10"]),
-            fmt(r.metrics.get("ndcg_at_10", 0), "ndcg_at_10", best_per_metric["ndcg_at_10"]),
-            f"{r.metrics.get('abstention_rate', 0)*100:.1f}%",
-            fmt(r.metrics.get("adversarial_abstention_rate", 0), "adv", best_adv),
-        ]
-        md_lines.append("| " + " | ".join(row) + " |")
+def release_torch_memory() -> None:
+    gc.collect()
+    try:
+        import torch
 
-    # Uplift section (D vs A)
-    a = next((r for r in results if r.name == "A_dense_only"), None)
-    d = next((r for r in results if r.name == "D_hybrid_plus_rerank"), None)
-    if a and d:
-        md_lines.append("\n## Production config (D) vs Dense-only baseline (A)\n")
-        for key, label in [
-            ("hit_at_5", "Hit@5"),
-            ("hit_at_10", "Hit@10"),
-            ("mrr_at_10", "MRR@10"),
-            ("ndcg_at_10", "nDCG@10"),
-        ]:
-            a_v = a.metrics.get(key, 0.0)
-            d_v = d.metrics.get(key, 0.0)
-            if a_v > 0:
-                uplift = (d_v - a_v) / a_v * 100
-                md_lines.append(f"- **{label}**: {a_v:.3f} → {d_v:.3f}  ({uplift:+.1f}%)")
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
 
-    out_path = out_dir / "ablation_results.md"
-    out_path.write_text("\n".join(md_lines) + "\n")
-    logger.info("ablation_md_written", path=str(out_path))
+
+def write_summary(run_dir: Path, configs: list[AblationConfig], manifest: dict[str, Any]) -> dict[str, Any]:
+    summaries = {c.name: summarize_retrieval(read_jsonl(run_dir / f"ranked_{c.name}.jsonl")) for c in configs}
+    (run_dir / "summary.json").write_text(json.dumps(summaries, indent=2, ensure_ascii=False) + "\n")
+    preamble = (
+        f"Retrieval-only run `{run_dir.name}` · no generator called · embedding "
+        f"`{manifest['models']['embedding']}` · reranker `{manifest['models']['reranker']}` · questions "
+        f"`{manifest['questions']['path']}` (n={manifest['questions']['n']}, review status "
+        f"{manifest['questions']['review_status']}) · commit `{manifest['git']['commit']}`"
+        f"{' (dirty tree)' if manifest['git']['dirty'] else ''} · {manifest['corpus']['n_pdfs']} PDFs / "
+        f"{manifest['corpus']['qdrant_points']} chunks."
+    )
+    (run_dir / "report.md").write_text(render_retrieval_markdown(summaries, "Retrieval ablation", preamble))
+    return summaries
+
+
+def run_retrieval_ablation(
+    questions_path: Path = QUESTIONS_PATH,
+    configs: list[AblationConfig] = CONFIGS,
+    runs_dir: Path = RUNS_DIR,
+    run_dir: Path | None = None,
+    limit: int | None = None,
+) -> Path:
+    from rag.config import get_settings
+    from rag.vectorstore.qdrant_store import QdrantStore
+
+    settings = get_settings()
+    questions = load_questions(questions_path)[:limit]
+
+    # Collection check before loading any model.
+    store = QdrantStore(embedder=None, settings=settings.vectorstore)  # type: ignore[arg-type]
+    try:
+        stats = store.collection_stats()
+    except Exception as e:
+        raise PreflightError(f"Qdrant collection unavailable: {e}") from e
+    if not stats.get("points_count"):
+        raise PreflightError("Qdrant collection is empty; run `make ingest` first.")
+
+    manifest = build_manifest(settings, questions_path, questions, stats, configs)
+    if run_dir is not None and (run_dir / "manifest.json").exists():
+        check_resume_compatible(json.loads((run_dir / "manifest.json").read_text()), manifest)
+        print(f"Resuming {run_dir}", flush=True)
+    else:
+        sha = (manifest["git"]["commit"] or "nogit")[:8] + ("-dirty" if manifest["git"]["dirty"] else "")
+        run_dir = run_dir or runs_dir / f"retrieval_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}_{sha}"
+        run_dir.mkdir(parents=True, exist_ok=False)
+        (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+    # Phase 1: embedder only.
+    kinds = sorted({c.candidates for c in configs})
+    if any(len(done_ids(run_dir / f"candidates_{k}.jsonl")) < len(questions) for k in kinds):
+        from rag.embeddings.bge_embedder import build_embedder
+
+        embedder = build_embedder(settings.embedding)
+        store.embedder = embedder
+        phase1_candidates(run_dir, questions, kinds, settings, store, embedder)
+        store.embedder = None
+        del embedder
+        release_torch_memory()
+
+    # Phase 2: reranker only.
+    reranker = None
+    if any(c.use_reranker and len(done_ids(run_dir / f"ranked_{c.name}.jsonl")) < len(questions) for c in configs):
+        from rag.retrieval.reranker import CrossEncoderReranker
+
+        reranker = CrossEncoderReranker(settings=settings.embedding)
+    phase2_rank(run_dir, configs, settings, reranker)
+    del reranker
+    release_torch_memory()
+
+    write_summary(run_dir, configs, json.loads((run_dir / "manifest.json").read_text()))
+    return run_dir
 
 
 def main(argv: list[str] | None = None) -> int:
+    from rag.logging_config import configure_logging
+
     configure_logging()
-    p = argparse.ArgumentParser(description="Run retrieval ablation across 4 configs.")
+    p = argparse.ArgumentParser(description="Retrieval-only 4-config ablation (no generator).")
     p.add_argument("--questions", type=Path, default=QUESTIONS_PATH)
-    p.add_argument("--out-dir", type=Path, default=RESULTS_DIR)
+    p.add_argument("--configs", nargs="*", default=[c.name for c in CONFIGS])
+    p.add_argument("--runs-dir", type=Path, default=RUNS_DIR)
+    p.add_argument("--run-dir", type=Path, default=None, help="Resume (or name) a run directory.")
+    p.add_argument("--limit", type=int, default=None, help="Only the first N questions (smoke runs).")
     args = p.parse_args(argv)
 
-    questions = load_questions(args.questions)
-    if not questions:
-        logger.error("no_questions_to_eval")
-        return 1
-    results = run_ablation(questions)
-    write_results(results, out_dir=args.out_dir)
-    print(f"Ablation complete. Results: {args.out_dir / 'ablation_results.md'}")
+    unknown = set(args.configs) - set(CONFIG_BY_NAME)
+    if unknown:
+        p.error(f"unknown configs: {sorted(unknown)}")
+    selected = [CONFIG_BY_NAME[n] for n in args.configs]
+    try:
+        run_dir = run_retrieval_ablation(args.questions, selected, args.runs_dir, args.run_dir, args.limit)
+    except PreflightError as e:
+        print(f"Retrieval evaluation did not run: {e}", file=sys.stderr)
+        return 2
+    print(f"Run complete: {run_dir / 'report.md'}")
     return 0
 
 
@@ -282,10 +418,14 @@ if __name__ == "__main__":
 
 
 __all__ = [
-    "ConfigResult",
-    "load_questions",
-    "main",
-    "run_ablation",
-    "run_one_config",
-    "write_results",
+    "CONFIGS",
+    "RANKING_DEPTH",
+    "AblationConfig",
+    "PreflightError",
+    "append_jsonl",
+    "build_manifest",
+    "phase2_rank",
+    "ranked_record",
+    "read_jsonl",
+    "run_retrieval_ablation",
 ]

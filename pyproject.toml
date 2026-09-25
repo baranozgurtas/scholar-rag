@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "scholar-rag"
 version = "1.0.0"
-description = "Production-grade RAG system for academic literature QA with hybrid retrieval and cross-encoder reranking."
+description = "Evaluation-driven RAG system for academic literature QA with hybrid retrieval, cross-encoder reranking and an enforced citation policy."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = { text = "Apache-2.0" }

@@ -71,6 +71,7 @@ async def query(req: QueryRequest, state: AppState = Depends(get_state)) -> Quer
             completion_tokens=completion_tokens,
             extra={
                 "abstained": response.abstained,
+                "outcome": response.outcome,
                 "prompt_version": response.prompt_version,
             },
         )
@@ -87,6 +88,9 @@ async def query(req: QueryRequest, state: AppState = Depends(get_state)) -> Quer
             latency_ms=LatencyMs(**response.latency_ms),
             prompt_version=response.prompt_version,
             config_summary=response.config_summary,
+            outcome=response.outcome,
+            top_rerank_score=response.top_rerank_score,
+            raw_answer=response.raw_answer if req.debug else None,
         )
     except HTTPException:
         raise

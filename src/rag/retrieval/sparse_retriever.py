@@ -11,10 +11,14 @@ This is the lexical leg of hybrid retrieval, complementing dense:
 
 from __future__ import annotations
 
-from rag.embeddings.bge_embedder import BGEEmbedder
+from typing import TYPE_CHECKING
+
 from rag.logging_config import get_logger
 from rag.retrieval.types import RetrievedChunk
-from rag.vectorstore.qdrant_store import QdrantStore
+
+if TYPE_CHECKING:  # avoid importing torch/FlagEmbedding at module import
+    from rag.embeddings.bge_embedder import BGEEmbedder
+    from rag.vectorstore.qdrant_store import QdrantStore
 
 logger = get_logger(__name__)
 

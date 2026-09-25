@@ -67,14 +67,24 @@ def mrr_at_k(retrieved_sources: list[str], expected: list[str], k: int) -> float
 
 
 def ndcg_at_k(retrieved_sources: list[str], expected: list[str], k: int) -> float:
-    """Binary relevance nDCG@k."""
+    """Binary, paper-level nDCG@k.
+
+    Each expected paper earns gain only at its first appearance in the top-k;
+    further chunks from the same paper earn nothing. Without this, five chunks
+    of one relevant paper would give DCG ≈ 2.95 against an IDCG of 1.0.
+    """
     if not expected:
         return 0.0
     expected_norm = {_normalize_source(e) for e in expected}
-    relevance = [
-        1 if _normalize_source(s) in expected_norm else 0
-        for s in retrieved_sources[:k]
-    ]
+    seen: set[str] = set()
+    relevance: list[int] = []
+    for s in retrieved_sources[:k]:
+        src = _normalize_source(s)
+        if src in expected_norm and src not in seen:
+            seen.add(src)
+            relevance.append(1)
+        else:
+            relevance.append(0)
     dcg = sum(rel / math.log2(i + 2) for i, rel in enumerate(relevance))
     # Ideal: all expected papers ranked first (capped at k)
     n_ideal = min(len(expected_norm), k)

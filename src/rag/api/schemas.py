@@ -51,6 +51,12 @@ class RetrievedChunkDTO(BaseModel):
 
 
 class CitationCheckDTO(BaseModel):
+    """Structural citation check: do the cited tags refer to supplied passages?
+
+    `all_valid` is False when no tags were extracted. This does not say
+    whether the cited passages support the answer's claims.
+    """
+
     n_extracted: int
     n_valid: int
     n_invalid: int
@@ -79,6 +85,17 @@ class QueryResponse(BaseModel):
     latency_ms: LatencyMs
     prompt_version: str
     config_summary: dict[str, Any] = Field(default_factory=dict)
+    outcome: str = Field(
+        default="answered",
+        description=(
+            "answered | model_abstained | mixed_abstention | uncited_answer | "
+            "invalid_citation | generation_error | no_context | low_rerank_score"
+        ),
+    )
+    top_rerank_score: float | None = None
+    raw_answer: str | None = Field(
+        default=None, description="Unfiltered generator output (only when debug=true)."
+    )
 
 
 # ─── /ingest ─────────────────────────────────────────────────────

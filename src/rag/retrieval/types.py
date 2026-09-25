@@ -51,4 +51,27 @@ class RetrievedChunk:
         )
 
 
+    def to_record(self, include_text: bool = True) -> dict[str, Any]:
+        """JSON-serializable form (used by the eval harness to save rankings)."""
+        d: dict[str, Any] = {
+            "chunk_id": self.chunk_id,
+            "score": self.score,
+            "score_breakdown": dict(self.score_breakdown),
+            "metadata": dict(self.metadata),
+        }
+        if include_text:
+            d["text"] = self.text
+        return d
+
+    @classmethod
+    def from_record(cls, d: dict[str, Any]) -> RetrievedChunk:
+        return cls(
+            chunk_id=d["chunk_id"],
+            text=d.get("text", ""),
+            score=float(d["score"]),
+            metadata=dict(d["metadata"]),
+            score_breakdown=dict(d.get("score_breakdown", {})),
+        )
+
+
 __all__ = ["RetrievedChunk"]

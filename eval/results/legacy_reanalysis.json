@@ -1,0 +1,530 @@
+{
+  "A_dense_only": {
+    "counts": {
+      "n_records": 25,
+      "n_errors": 0,
+      "n_answerable": 20,
+      "n_unanswerable": 5,
+      "review_status": {
+        "unreviewed": 20,
+        "handwritten": 5
+      },
+      "splits": {
+        "legacy_test": 25
+      }
+    },
+    "retrieval": {
+      "n": 20,
+      "hit_at_5": 0.95,
+      "mrr_at_10": 0.925,
+      "ndcg_at_10": 0.9315464876785728,
+      "min_ranking_depth": 5,
+      "note": "Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5."
+    },
+    "abstention": {
+      "false_abstention_on_answerable": {
+        "count": 3,
+        "n": 20,
+        "rate": 0.15,
+        "wilson95": [
+          0.0524,
+          0.3604
+        ]
+      },
+      "false_abstention_by_outcome": {
+        "legacy_abstained_substring": 3
+      },
+      "false_answer_on_unanswerable": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "abstention_by_outcome_on_unanswerable": {
+        "legacy_abstained_substring": 5
+      }
+    },
+    "citations": {
+      "released_answers": 17,
+      "released_with_all_tags_valid": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "tag_validity_over_all_generated_tags": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "withheld_by_guard": {
+        "invalid_citation": 0,
+        "mixed_abstention": 0,
+        "uncited_answer": 0
+      },
+      "validity_recorded": false,
+      "factual_grounding": {
+        "status": "not_measured",
+        "note": "Not measured by this harness. Citation tag validity only shows that a cited (title, page) was among the supplied passages, not that the passage supports the claim. Use `python -m eval.ragas_eval` (LLM judge) or human review for grounding."
+      }
+    },
+    "latency": {
+      "n": 25,
+      "total_ms_p50": 5680.208206176758,
+      "total_ms_p95": 8940.786600112915
+    },
+    "failures": [
+      {
+        "id": "L04",
+        "question": "What are the two datasets used in the evaluation, and what do they contain?",
+        "failures": [
+          "retrieval_miss_at_5",
+          "false_abstention:legacy_abstained_substring"
+        ],
+        "expected_sources": [
+          "bpr-rendle-2009"
+        ],
+        "top_sources": [
+          "n-beats-oreshkin-2019",
+          "xgboost-chen-2016",
+          "xgboost-chen-2016",
+          "xgboost-chen-2016",
+          "n-beats-oreshkin-2019"
+        ],
+        "error": null
+      },
+      {
+        "id": "L07",
+        "question": "What metric does the paper use to evaluate retrieval quality, and how is it defined?",
+        "failures": [
+          "false_abstention:legacy_abstained_substring"
+        ],
+        "expected_sources": [
+          "colbertv2-santhanam-2022"
+        ],
+        "top_sources": [
+          "lost-in-the-middle-2023",
+          "colbertv2-santhanam-2022",
+          "bge-m3-chen-2024",
+          "bge-m3-chen-2024",
+          "bge-m3-chen-2024"
+        ],
+        "error": null
+      },
+      {
+        "id": "L15",
+        "question": "What is the performance improvement of N-BEATS over a statistical benchmark according to the paper's abstract?",
+        "failures": [
+          "false_abstention:legacy_abstained_substring"
+        ],
+        "expected_sources": [
+          "n-beats-oreshkin-2019"
+        ],
+        "top_sources": [
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019"
+        ],
+        "error": null
+      }
+    ],
+    "legacy_extras": {
+      "unanswerable_abstained_but_emitted_citation_tags": 3,
+      "answerable_released_with_zero_citation_tags": 1,
+      "records_with_fewer_than_5_chunks": 0
+    },
+    "reported_metrics": {
+      "n": 25,
+      "hit_at_5": 0.95,
+      "hit_at_10": 0.95,
+      "mrr_at_10": 0.925,
+      "ndcg_at_10": 0.9315464876785728,
+      "abstention_rate": 0.32,
+      "adversarial_abstention_rate": 1.0,
+      "n_adversarial": 5
+    }
+  },
+  "B_dense_plus_rerank": {
+    "counts": {
+      "n_records": 25,
+      "n_errors": 0,
+      "n_answerable": 20,
+      "n_unanswerable": 5,
+      "review_status": {
+        "unreviewed": 20,
+        "handwritten": 5
+      },
+      "splits": {
+        "legacy_test": 25
+      }
+    },
+    "retrieval": {
+      "n": 20,
+      "hit_at_5": 1.0,
+      "mrr_at_10": 0.9666666666666668,
+      "ndcg_at_10": 0.975,
+      "min_ranking_depth": 5,
+      "note": "Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5."
+    },
+    "abstention": {
+      "false_abstention_on_answerable": {
+        "count": 1,
+        "n": 20,
+        "rate": 0.05,
+        "wilson95": [
+          0.0089,
+          0.2361
+        ]
+      },
+      "false_abstention_by_outcome": {
+        "legacy_abstained_substring": 1
+      },
+      "false_answer_on_unanswerable": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "abstention_by_outcome_on_unanswerable": {
+        "legacy_abstained_substring": 5
+      }
+    },
+    "citations": {
+      "released_answers": 19,
+      "released_with_all_tags_valid": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "tag_validity_over_all_generated_tags": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "withheld_by_guard": {
+        "invalid_citation": 0,
+        "mixed_abstention": 0,
+        "uncited_answer": 0
+      },
+      "validity_recorded": false,
+      "factual_grounding": {
+        "status": "not_measured",
+        "note": "Not measured by this harness. Citation tag validity only shows that a cited (title, page) was among the supplied passages, not that the passage supports the claim. Use `python -m eval.ragas_eval` (LLM judge) or human review for grounding."
+      }
+    },
+    "latency": {
+      "n": 25,
+      "total_ms_p50": 6578.6027908325195,
+      "total_ms_p95": 9823.957443237305
+    },
+    "failures": [
+      {
+        "id": "L18",
+        "question": "What metric is used to evaluate the Jeopardy question generation task, and what makes it suitable for this task compared",
+        "failures": [
+          "false_abstention:legacy_abstained_substring"
+        ],
+        "expected_sources": [
+          "rag-lewis-2020"
+        ],
+        "top_sources": [
+          "rag-lewis-2020",
+          "rag-lewis-2020",
+          "rag-lewis-2020",
+          "rag-lewis-2020",
+          "rag-lewis-2020"
+        ],
+        "error": null
+      }
+    ],
+    "legacy_extras": {
+      "unanswerable_abstained_but_emitted_citation_tags": 2,
+      "answerable_released_with_zero_citation_tags": 3,
+      "records_with_fewer_than_5_chunks": 0
+    },
+    "reported_metrics": {
+      "n": 25,
+      "hit_at_5": 1.0,
+      "hit_at_10": 1.0,
+      "mrr_at_10": 0.9666666666666666,
+      "ndcg_at_10": 0.975,
+      "abstention_rate": 0.24,
+      "adversarial_abstention_rate": 1.0,
+      "n_adversarial": 5
+    }
+  },
+  "C_hybrid_no_rerank": {
+    "counts": {
+      "n_records": 25,
+      "n_errors": 0,
+      "n_answerable": 20,
+      "n_unanswerable": 5,
+      "review_status": {
+        "unreviewed": 20,
+        "handwritten": 5
+      },
+      "splits": {
+        "legacy_test": 25
+      }
+    },
+    "retrieval": {
+      "n": 20,
+      "hit_at_5": 0.95,
+      "mrr_at_10": 0.95,
+      "ndcg_at_10": 0.95,
+      "min_ranking_depth": 5,
+      "note": "Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5."
+    },
+    "abstention": {
+      "false_abstention_on_answerable": {
+        "count": 3,
+        "n": 20,
+        "rate": 0.15,
+        "wilson95": [
+          0.0524,
+          0.3604
+        ]
+      },
+      "false_abstention_by_outcome": {
+        "legacy_abstained_substring": 3
+      },
+      "false_answer_on_unanswerable": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "abstention_by_outcome_on_unanswerable": {
+        "legacy_abstained_substring": 5
+      }
+    },
+    "citations": {
+      "released_answers": 17,
+      "released_with_all_tags_valid": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "tag_validity_over_all_generated_tags": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "withheld_by_guard": {
+        "invalid_citation": 0,
+        "mixed_abstention": 0,
+        "uncited_answer": 0
+      },
+      "validity_recorded": false,
+      "factual_grounding": {
+        "status": "not_measured",
+        "note": "Not measured by this harness. Citation tag validity only shows that a cited (title, page) was among the supplied passages, not that the passage supports the claim. Use `python -m eval.ragas_eval` (LLM judge) or human review for grounding."
+      }
+    },
+    "latency": {
+      "n": 25,
+      "total_ms_p50": 5554.161787033081,
+      "total_ms_p95": 9293.876647949219
+    },
+    "failures": [
+      {
+        "id": "L04",
+        "question": "What are the two datasets used in the evaluation, and what do they contain?",
+        "failures": [
+          "retrieval_miss_at_5",
+          "false_abstention:legacy_abstained_substring"
+        ],
+        "expected_sources": [
+          "bpr-rendle-2009"
+        ],
+        "top_sources": [
+          "xgboost-chen-2016",
+          "xgboost-chen-2016",
+          "data-discontents-paullada-2020",
+          "deepar-salinas-2017",
+          "ncf-he-2017"
+        ],
+        "error": null
+      },
+      {
+        "id": "L15",
+        "question": "What is the performance improvement of N-BEATS over a statistical benchmark according to the paper's abstract?",
+        "failures": [
+          "false_abstention:legacy_abstained_substring"
+        ],
+        "expected_sources": [
+          "n-beats-oreshkin-2019"
+        ],
+        "top_sources": [
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019",
+          "n-beats-oreshkin-2019"
+        ],
+        "error": null
+      },
+      {
+        "id": "L18",
+        "question": "What metric is used to evaluate the Jeopardy question generation task, and what makes it suitable for this task compared",
+        "failures": [
+          "false_abstention:legacy_abstained_substring"
+        ],
+        "expected_sources": [
+          "rag-lewis-2020"
+        ],
+        "top_sources": [
+          "rag-lewis-2020",
+          "rag-lewis-2020",
+          "rag-lewis-2020",
+          "rag-lewis-2020",
+          "rag-lewis-2020"
+        ],
+        "error": null
+      }
+    ],
+    "legacy_extras": {
+      "unanswerable_abstained_but_emitted_citation_tags": 0,
+      "answerable_released_with_zero_citation_tags": 2,
+      "records_with_fewer_than_5_chunks": 0
+    },
+    "reported_metrics": {
+      "n": 25,
+      "hit_at_5": 0.95,
+      "hit_at_10": 0.95,
+      "mrr_at_10": 0.95,
+      "ndcg_at_10": 0.95,
+      "abstention_rate": 0.32,
+      "adversarial_abstention_rate": 1.0,
+      "n_adversarial": 5
+    }
+  },
+  "D_hybrid_plus_rerank": {
+    "counts": {
+      "n_records": 25,
+      "n_errors": 0,
+      "n_answerable": 20,
+      "n_unanswerable": 5,
+      "review_status": {
+        "unreviewed": 20,
+        "handwritten": 5
+      },
+      "splits": {
+        "legacy_test": 25
+      }
+    },
+    "retrieval": {
+      "n": 20,
+      "hit_at_5": 0.95,
+      "mrr_at_10": 0.95,
+      "ndcg_at_10": 0.95,
+      "min_ranking_depth": 5,
+      "note": "Only 5 ranked sources were recorded per question, so the @10 metrics are effectively @5."
+    },
+    "abstention": {
+      "false_abstention_on_answerable": {
+        "count": 0,
+        "n": 20,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.1611
+        ]
+      },
+      "false_abstention_by_outcome": {},
+      "false_answer_on_unanswerable": {
+        "count": 0,
+        "n": 5,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.4345
+        ]
+      },
+      "abstention_by_outcome_on_unanswerable": {
+        "legacy_abstained_substring": 5
+      }
+    },
+    "citations": {
+      "released_answers": 20,
+      "released_with_all_tags_valid": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "tag_validity_over_all_generated_tags": {
+        "count": 0,
+        "n": 0,
+        "rate": null,
+        "wilson95": null
+      },
+      "withheld_by_guard": {
+        "invalid_citation": 0,
+        "mixed_abstention": 0,
+        "uncited_answer": 0
+      },
+      "validity_recorded": false,
+      "factual_grounding": {
+        "status": "not_measured",
+        "note": "Not measured by this harness. Citation tag validity only shows that a cited (title, page) was among the supplied passages, not that the passage supports the claim. Use `python -m eval.ragas_eval` (LLM judge) or human review for grounding."
+      }
+    },
+    "latency": {
+      "n": 25,
+      "total_ms_p50": 6757.34543800354,
+      "total_ms_p95": 10340.58928489685
+    },
+    "failures": [
+      {
+        "id": "L04",
+        "question": "What are the two datasets used in the evaluation, and what do they contain?",
+        "failures": [
+          "retrieval_miss_at_5"
+        ],
+        "expected_sources": [
+          "bpr-rendle-2009"
+        ],
+        "top_sources": [
+          "xgboost-chen-2016",
+          "deepar-salinas-2017",
+          "ncf-he-2017",
+          "colbertv2-santhanam-2022",
+          "deepar-salinas-2017"
+        ],
+        "error": null
+      }
+    ],
+    "legacy_extras": {
+      "unanswerable_abstained_but_emitted_citation_tags": 3,
+      "answerable_released_with_zero_citation_tags": 2,
+      "records_with_fewer_than_5_chunks": 0
+    },
+    "reported_metrics": {
+      "n": 25,
+      "hit_at_5": 0.95,
+      "hit_at_10": 0.95,
+      "mrr_at_10": 0.95,
+      "ndcg_at_10": 0.95,
+      "abstention_rate": 0.2,
+      "adversarial_abstention_rate": 1.0,
+      "n_adversarial": 5
+    }
+  }
+}

@@ -1,6 +1,7 @@
-.PHONY: help install install-dev clean lint format test test-fast test-integration \
+.PHONY: help install install-dev clean lint format test test-ci test-fast test-integration \
         services-up services-down qdrant-up langfuse-up ollama-pull \
-        download-papers ingest generate-questions eval eval-ablation eval-ragas \
+        download-papers ingest generate-questions eval eval-retrieval eval-retrieval-draft \
+        eval-generation eval-ragas eval-legacy verify-questions \
         api ui docker-build docker-up docker-down ci
 
 # Default target shows help
@@ -47,8 +48,13 @@ format:  ## Auto-format with ruff
 	$(RUFF) check --fix src tests eval
 
 # ─── Tests ────────────────────────────────────────────────────────
-test:  ## Run all tests
+test:  ## Run all tests (no models / services needed)
 	$(PYTEST) tests/
+
+test-ci:  ## Run exactly what CI runs (lint + tests + legacy re-analysis check)
+	$(RUFF) check src tests eval
+	$(PYTEST) tests/ -m "not integration"
+	$(PY) -m eval.reanalyze_legacy
 
 test-fast:  ## Run tests excluding slow + integration
 	$(PYTEST) tests/ -m "not slow and not integration"
@@ -70,8 +76,8 @@ services-down:  ## Stop all dev services
 	docker compose -f docker-compose.dev.yml down
 
 # ─── Ollama (host) ────────────────────────────────────────────────
-ollama-pull:  ## Pull Qwen2.5:14b via Ollama (host)
-	ollama pull qwen2.5:14b
+ollama-pull:  ## Pull the generator model from .env.example (qwen2.5:7b)
+	ollama pull qwen2.5:7b
 
 # ─── Data pipeline ────────────────────────────────────────────────
 download-papers:  ## Download 15 eval corpus papers from arXiv
@@ -80,19 +86,30 @@ download-papers:  ## Download 15 eval corpus papers from arXiv
 ingest:  ## Ingest PDFs from data/pdfs into Qdrant
 	$(PY) -m rag.ingestion.pipeline --pdf-dir ./data/pdfs
 
-generate-questions:  ## Generate 30 synthetic + 5 adversarial questions
+generate-questions:  ## Generate new LLM-written questions (writes eval/questions_synthetic_new.jsonl)
 	$(PY) -m eval.generate_questions
 
+verify-questions:  ## Check question files against PDF text (evidence quotes, absent terms)
+	$(PYTEST) tests/test_eval_harness.py -k "QuestionFiles"
+
 # ─── Evaluation ───────────────────────────────────────────────────
-eval-ablation:  ## Run 4-config retrieval ablation
+eval-retrieval:  ## Retrieval-only 4-config ablation, legacy 25 (embedder, then reranker; no LLM)
 	$(PY) -m eval.retrieval_ablation
 
-eval-ragas:  ## Run RAGAS faithfulness/relevancy/precision/recall
-	$(PY) -m eval.ragas_eval
+eval-retrieval-draft:  ## Retrieval-only ablation on the unreviewed v2 dev/held-out draft
+	$(PY) -m eval.retrieval_ablation --questions eval/questions_v2_draft.jsonl
 
-eval:  ## Run full eval suite (ablation + RAGAS) and update README
-	$(PY) -m eval.run_full_eval
-	$(PY) scripts/update_readme_metrics.py
+eval-generation:  ## Generation for one config from a retrieval run: make eval-generation RUN=eval/results/runs/<dir>
+	$(PY) -m eval.generation_eval $(RUN) --config $(or $(CONFIG),D_hybrid_plus_rerank)
+
+eval-ragas:  ## LLM-judged RAGAS on generation records: make eval-ragas RECORDS=<run>/generation_<cfg>/records.jsonl
+	$(PY) -m eval.ragas_eval $(RECORDS)
+
+eval-legacy:  ## Re-analyse the committed results (no models)
+	$(PY) -m eval.reanalyze_legacy
+
+eval:  ## Full local eval as separate steps: retrieval → generation (D) → RAGAS
+	$(PY) -m eval.run_full_eval --with-ragas
 
 # ─── Serving ──────────────────────────────────────────────────────
 api:  ## Start FastAPI server (port 8000)
@@ -123,5 +140,5 @@ docker-down:  ## Stop full stack
 	docker compose down
 
 # ─── CI surrogate (local) ─────────────────────────────────────────
-ci: lint test-fast  ## Run what CI runs (lint + fast tests)
+ci: test-ci  ## Run what CI runs
 	@echo "✅ CI checks passed"
