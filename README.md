@@ -16,49 +16,7 @@ Ask a question about 15 ML research papers. Scholar RAG retrieves evidence with 
 
 ---
 
-## Architecture
 
-```mermaid
-flowchart TB
-    subgraph ingest["1 · Ingestion"]
-        direction LR
-        pdf["15 PDFs"] --> chunk["Section-aware chunker<br/>drops figure debris"]
-        chunk --> embed["BGE-M3<br/>dense + sparse<br/>in one pass"]
-        embed --> store[("Qdrant<br/>1,278 chunks")]
-    end
-
-    subgraph retrieve["2 · Retrieval and reranking"]
-        direction LR
-        q["Question"] --> dense["Dense top-30"]
-        q --> sparse["Sparse top-30"]
-        dense --> rrf["RRF, k=60<br/>top-20"]
-        sparse --> rrf
-        rrf --> rerank["Cross-encoder<br/>bge-reranker-v2-m3<br/>top-5"]
-    end
-
-    subgraph generate["3 · Generation"]
-        direction LR
-        gate{"Rerank gate<br/>off by default"} -- "pass" --> llm["Qwen2.5:7b"]
-        gate -- "below threshold" --> refuseGate["Refuse<br/>low_rerank_score"]
-    end
-
-    subgraph policy["4 · Citation release policy"]
-        direction LR
-        abst{"Abstention<br/>sentence?"} -- "no" --> tags{"≥1 tag, all match<br/>supplied passages?"}
-        abst -- "only that" --> refuseModel["Refuse<br/>model_abstained"]
-        abst -- "plus other text" --> withhold["Withhold<br/>mixed · uncited ·<br/>invalid tag · error"]
-        tags -- "no" --> withhold
-        tags -- "yes" --> release["Release answer<br/>with citations"]
-    end
-
-    ingest -. "indexed chunks" .-> retrieve
-    retrieve -- "top-5 chunks" --> generate
-    generate -- "model output" --> policy
-```
-
-Every chunk carries `paper_title`, `page` and `section`. The prompt asks for a `[Paper: TITLE | p.N | §SECTION]` tag after each claim, and the same fields in parentheses are accepted under identical rules. The API response includes an `outcome` field explaining any refusal, and with `debug=true` it also returns the raw model output.
-
----
 
 ## Key engineering decisions
 
