@@ -208,3 +208,19 @@ class TestThresholdSelection:
     def test_refuses_dev_without_both_classes(self) -> None:
         with pytest.raises(ValueError):
             select_threshold([_rec("a1", ["p"], ["p"], False, score=0.9)])
+
+
+class TestSerialization:
+    def test_round_floats_removes_last_digit_drift(self) -> None:
+        from eval.harness import round_floats
+
+        a = round_floats({"m": 0.9666666666666666, "l": [0.1 + 0.2], "n": 3, "s": None})
+        b = round_floats({"m": 0.9666666666666668, "l": [0.3], "n": 3, "s": None})
+        assert a == b == {"m": 0.966667, "l": [0.3], "n": 3, "s": None}
+
+    def test_committed_legacy_json_matches_regeneration(self) -> None:
+        from eval.harness import round_floats
+        from eval.reanalyze_legacy import RESULTS_DIR
+
+        committed = json.loads((RESULTS_DIR / "legacy_reanalysis.json").read_text())
+        assert committed == json.loads(json.dumps(round_floats(reanalyze())))

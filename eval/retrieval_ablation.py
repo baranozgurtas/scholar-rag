@@ -39,7 +39,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from eval.harness import render_retrieval_markdown, summarize_retrieval
+from eval.harness import render_retrieval_markdown, round_floats, summarize_retrieval
 from eval.questions import PDF_DIR, QUESTIONS_PATH, EvalQuestion, file_sha256, load_questions
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -317,7 +317,7 @@ def release_torch_memory() -> None:
 
 def write_summary(run_dir: Path, configs: list[AblationConfig], manifest: dict[str, Any]) -> dict[str, Any]:
     summaries = {c.name: summarize_retrieval(read_jsonl(run_dir / f"ranked_{c.name}.jsonl")) for c in configs}
-    (run_dir / "summary.json").write_text(json.dumps(summaries, indent=2, ensure_ascii=False) + "\n")
+    (run_dir / "summary.json").write_text(json.dumps(round_floats(summaries), indent=2, ensure_ascii=False) + "\n")
     preamble = (
         f"Retrieval-only run `{run_dir.name}` · no generator called · embedding "
         f"`{manifest['models']['embedding']}` · reranker `{manifest['models']['reranker']}` · questions "

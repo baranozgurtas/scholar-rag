@@ -38,6 +38,24 @@ FACTUAL_GROUNDING_NOTE = (
 )
 
 
+# Serialized summaries round every float to this many decimal places.
+# Summation order and libm differences across Python builds change the last
+# digits (e.g. 0.9666666666666666 vs 0.9666666666666668); 6 places is far
+# finer than any reported precision (3) and makes committed JSON reproducible.
+SERIALIZED_FLOAT_DIGITS = 6
+
+
+def round_floats(obj: Any, ndigits: int = SERIALIZED_FLOAT_DIGITS) -> Any:
+    """Recursively round floats in dicts/lists for stable JSON output."""
+    if isinstance(obj, float):
+        return round(obj, ndigits)
+    if isinstance(obj, dict):
+        return {k: round_floats(v, ndigits) for k, v in obj.items()}
+    if isinstance(obj, list | tuple):
+        return [round_floats(v, ndigits) for v in obj]
+    return obj
+
+
 def percentile(values: list[float], q: float) -> float | None:
     """Linear-interpolated percentile (same convention as numpy's default)."""
     if not values:
@@ -396,6 +414,7 @@ __all__ = [
     "percentile",
     "render_markdown",
     "render_retrieval_markdown",
+    "round_floats",
     "summarize",
     "summarize_retrieval",
     "wilson_interval",

@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from eval.harness import render_markdown, summarize
+from eval.harness import render_markdown, round_floats, summarize
 from eval.retrieval_ablation import (
     CONFIG_BY_NAME,
     PreflightError,
@@ -166,7 +166,7 @@ def run_generation_eval(retrieval_run: Path, config: str, out_dir: Path | None =
 
     records = read_jsonl(records_path)
     summary = summarize(records)
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
+    (out_dir / "summary.json").write_text(json.dumps(round_floats(summary), indent=2, ensure_ascii=False) + "\n")
     preamble = (
         f"Generation run for `{config}` from retrieval run `{retrieval_run.name}` · generator "
         f"`{manifest['generator']['model']}` (digest `{(manifest['generator']['ollama_digest'] or '')[:12]}`) · "
