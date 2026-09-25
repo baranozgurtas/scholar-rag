@@ -1,49 +1,68 @@
 # Scholar RAG
 
-**Citation-enforced question answering over ML research papers, with reproducible retrieval evaluation.**
+**A citation-enforced RAG system for machine-learning papers, with a reproducible retrieval evaluation.**
 
-Scholar RAG answers questions about a corpus of 15 machine-learning papers. It retrieves with BGE-M3 dense and sparse vectors fused by Reciprocal Rank Fusion, reranks with a BGE cross-encoder, and generates with Qwen2.5:7b. Released answers require at least one citation tag matching a supplied passage. That check is structural: it shows the cited page was in the model's context, not that the passage supports the claim. A FastAPI service serves the answers and a web UI that shows the evidence behind each one. An evaluation harness records every run, from models and index to commit and question-file hash, and CI checks it deterministically.
+Ask a question about 15 ML research papers. Scholar RAG retrieves evidence with hybrid search and a cross-encoder reranker, generates an answer with Qwen2.5:7b, and releases it only if its citations point to passages the model was actually given.
 
 [![CI](https://github.com/baranozgurtas/scholar-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/baranozgurtas/scholar-rag/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 
-- **Hybrid retrieval**: BGE-M3 dense + sparse vectors from one forward pass, fused with RRF (k=60), stored as named vectors in Qdrant.
-- **Cross-encoder reranking**: `bge-reranker-v2-m3` reorders the top 20 candidates, and the top 5 go to the generator.
-- **Enforced citation policy**: an answer is released only if it carries at least one citation tag and every tag matches a supplied passage. Otherwise the user gets an explicit refusal with a recorded reason.
-- **Evidence-first UI**: citation pills link to the cited chunk, alongside dense, sparse and rerank scores.
-- **Reproducible evaluation**: retrieval-only ablations, a resumable generation evaluation, per-run manifests, and a model-free CI suite.
+- **Working RAG application.** A FastAPI service with a web UI. BGE-M3 dense and sparse retrieval are fused with RRF, a cross-encoder reranks the results, and Qwen2.5:7b answers from the top five chunks.
+- **Evidence UI.** Each answer shows its retrieved chunks with dense, sparse and rerank scores. Citation pills jump to the cited chunk, and every refusal states its reason.
+- **Citation release policy.** An answer is released only if it has at least one citation tag and every tag matches a supplied passage. Otherwise it is withheld and the outcome is recorded. This is a structural check: a matching tag shows the cited page was in the model's context, not that the passage supports the claim.
+- **Reproducible A–D retrieval evaluation.** Dense, dense + rerank, hybrid, and hybrid + rerank are compared without loading the generator. Each run records its commit, models, index and question-file hash, and CI checks the harness without any models.
 
 ---
 
 ## Architecture
 
-```
-INGESTION
-  15 PDFs → section-aware chunker (drops figure debris) → 1,278 chunks
-          → BGE-M3 (dense + sparse, one forward pass) → Qdrant (named vectors)
+```mermaid
+flowchart TB
+    subgraph ingest["1 · Ingestion"]
+        direction LR
+        pdf["15 PDFs"] --> chunk["Section-aware chunker<br/>drops figure debris"]
+        chunk --> embed["BGE-M3<br/>dense + sparse<br/>in one pass"]
+        embed --> store[("Qdrant<br/>1,278 chunks")]
+    end
 
-QUERY
-  question → dense top-30 + sparse top-30 → RRF (k=60) → top-20
-           → cross-encoder rerank (bge-reranker-v2-m3) → top-5
-           → [optional gate: top-1 rerank score < threshold → refuse]
-           → Qwen2.5:7b
-           → answer policy
-               abstention sentence only       → model_abstained
-               abstention + other content     → withheld
-               no citation tag                → withheld
-               tag not in supplied passages   → withheld
-               otherwise                      → released
+    subgraph retrieve["2 · Retrieval and reranking"]
+        direction LR
+        q["Question"] --> dense["Dense top-30"]
+        q --> sparse["Sparse top-30"]
+        dense --> rrf["RRF, k=60<br/>top-20"]
+        sparse --> rrf
+        rrf --> rerank["Cross-encoder<br/>bge-reranker-v2-m3<br/>top-5"]
+    end
+
+    subgraph generate["3 · Generation"]
+        direction LR
+        gate{"Rerank gate<br/>off by default"} -- "pass" --> llm["Qwen2.5:7b"]
+        gate -- "below threshold" --> refuseGate["Refuse<br/>low_rerank_score"]
+    end
+
+    subgraph policy["4 · Citation release policy"]
+        direction LR
+        abst{"Abstention<br/>sentence?"} -- "no" --> tags{"≥1 tag, all match<br/>supplied passages?"}
+        abst -- "only that" --> refuseModel["Refuse<br/>model_abstained"]
+        abst -- "plus other text" --> withhold["Withhold<br/>mixed · uncited ·<br/>invalid tag · error"]
+        tags -- "no" --> withhold
+        tags -- "yes" --> release["Release answer<br/>with citations"]
+    end
+
+    ingest -. "indexed chunks" .-> retrieve
+    retrieve -- "top-5 chunks" --> generate
+    generate -- "model output" --> policy
 ```
 
-Every chunk carries `paper_title`, `page` and `section`. The prompt asks for a `[Paper: TITLE | p.N | §SECTION]` tag after each claim. The same fields in parentheses are accepted too, under identical rules. The API response includes an `outcome` field explaining any refusal, and with `debug=true` it also returns the raw model output.
+Every chunk carries `paper_title`, `page` and `section`. The prompt asks for a `[Paper: TITLE | p.N | §SECTION]` tag after each claim, and the same fields in parentheses are accepted under identical rules. The API response includes an `outcome` field explaining any refusal, and with `debug=true` it also returns the raw model output.
 
 ---
 
 ## Key engineering decisions
 
-1. **Citations are a release condition, not decoration.** [`citation_checker.py`](src/rag/guards/citation_checker.py) accepts a tag only if it matches a supplied passage: exactly, with a different section on the same page, or with a whole-word shortened title of at least 6 characters. Uncited answers, out-of-context tags and refusal-plus-answer outputs are withheld. This is a structural check: a valid tag shows that the cited page was in context, not that it supports the claim.
+1. **Citations are a release condition, not decoration.** [`citation_checker.py`](src/rag/guards/citation_checker.py) accepts a tag only if it matches a supplied passage: exactly, with a different section on the same page, or with a whole-word shortened title of at least 6 characters. Uncited answers, out-of-context tags and refusal-plus-answer outputs are withheld.
 2. **Retrieval is evaluated separately from generation.** The four-config ablation never loads the generator. The dense-only and dense+rerank configs share one candidate set, and the two hybrid configs share another, so the embedder and the reranker run in separate phases.
 3. **Coverage is measured for multi-paper questions.** Hit@5 is satisfied by any one expected paper. All-sources@5 requires every expected paper in the five chunks the generator sees.
 4. **Refusal is gated before generation only when evidence supports it.** The top-1 rerank-score gate is off by default. Its threshold can only be selected on the dev split, and recorded outputs let it be replayed exactly.
@@ -57,17 +76,26 @@ More rationale: [`docs/design_decisions.md`](docs/design_decisions.md).
 
 ## Evaluation results
 
-### Exploratory retrieval run (35 questions)
+### Finding: Hit@5 saturates, All-sources@5 exposes missing evidence
 
-Run [`retrieval_v2draft35_20260925T222828Z_f416193`](eval/results/runs/retrieval_v2draft35_20260925T222828Z_f416193/) evaluated four retrieval configurations on [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl): 25 answerable and 10 unanswerable questions, with fixed dev and held-out splits. The results are **exploratory**: the questions were drafted by an LLM, have not been human-reviewed, and their outcomes have been inspected.
+The A–D retrieval ablation ran on a 35-question set with fixed dev and held-out splits (25 answerable questions, 4 of them needing two papers, plus 10 unanswerable). The run is [`retrieval_v2draft35_20260925T222828Z_f416193`](eval/results/runs/retrieval_v2draft35_20260925T222828Z_f416193/); the questions are in [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl).
 
-- **All four configurations reached Hit@5 = 1.000** on answerable questions in both splits.
-- **All-sources@5 separated them on held-out.** Dense-only (A) scored 14/14; the API default, hybrid + rerank (D), scored 13/14.
-- **Two multi-paper questions exposed incomplete coverage:**
-  - **D05** (BPR vs NCF): no configuration placed NCF in the top 5.
-  - **H13** (DeepAR and conformalized quantile regression): only dense-only placed DeepAR in the top 5.
+| Config | Retrieval | Hit@5 (dev / held-out) | All-sources@5 dev (of 11) | All-sources@5 held-out (of 14) | MRR@10 held-out | nDCG@10 held-out | Latency p50 / p95, held-out (s) |
+|---|---|---|---|---|---|---|---|
+| A | Dense | 1.000 / 1.000 | 10/11 | 14/14 | 1.000 | 0.991 | 0.30 / 0.41 |
+| B | Dense + rerank | 1.000 / 1.000 | 10/11 | 13/14 | 1.000 | 0.974 | 10.78 / 13.49 |
+| C | Hybrid (RRF) | 1.000 / 1.000 | 10/11 | 13/14 | 0.952 | 0.949 | 0.75 / 1.00 |
+| D | Hybrid + rerank (API default) | 1.000 / 1.000 | 10/11 | 13/14 | 1.000 | 0.962 | 14.82 / 23.77 |
 
-These are retrieval measurements. They do not rank the configurations overall, and they say nothing about answer quality. Per-split tables, latency and per-question failures are in [docs/evaluation.md](docs/evaluation.md#exploratory-35-question-retrieval-run). The status of the generation evaluation is there too.
+MRR@10, nDCG@10 and latency are for held-out answerable questions. Latency is retrieval plus reranking per question, measured in the evaluation run.
+
+- **Hit@5 cannot separate the configurations.** Each one placed at least one correct paper in the generator's top five for every answerable question.
+- **All-sources@5 can.** It requires every expected paper in those five chunks, and it exposed evidence missing from multi-paper questions:
+  - **D05** (BPR vs NCF): no configuration placed NCF in the top five.
+  - **H13** (DeepAR and conformalized quantile regression): only dense-only placed DeepAR in the top five.
+- **For comparison questions, Hit@5 overstates retrieval quality.** The harness therefore reports All-sources@5 alongside it and lists `missing_required_source_at_5` per question.
+
+These are retrieval measurements. They do not rank the configurations overall or measure answer quality. The question set was drafted by an LLM and has not been human-reviewed, and its outcomes have been inspected, so the results are exploratory. Per-split tables, latency, per-question failures and the generation-evaluation status are in [docs/evaluation.md](docs/evaluation.md#exploratory-35-question-retrieval-run).
 
 ### Historical results (legacy 25-question set)
 
