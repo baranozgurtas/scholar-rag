@@ -1,0 +1,11 @@
+{
+  "questions_file": "eval/questions_v2_draft.jsonl",
+  "questions_sha256": "b587122590998b9cb70aea3ada49294be53cb530adfea6a72034f9e14446df07",
+  "snapshot": "questions_v2_draft.snapshot.jsonl",
+  "inspected_utc": "2026-09-25",
+  "inspected_by": "Claude Code session reporting results to the repository owner",
+  "heldout_outcomes_inspected": ["H13", "H14", "H15", "H16", "H17", "H18", "H19", "H20"],
+  "dev_outcomes_inspected": ["D11", "D12", "D13", "D14", "D15"],
+  "previously_inspected_per_question_file": "items with inspected_before_freeze=true (D01-D10, H01-H12)",
+  "consequence": "After this run no held-out item in this file is pristine; treat held-out results as inspected. The question file itself was not modified."
+}

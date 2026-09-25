@@ -1,0 +1,530 @@
+{
+  "dev": {
+    "A_dense_only": {
+      "counts": {
+        "n_records": 15,
+        "n_errors": 0,
+        "n_answerable": 11,
+        "n_unanswerable": 4,
+        "review_status": {
+          "unreviewed": 15
+        },
+        "splits": {
+          "dev": 15
+        }
+      },
+      "retrieval": {
+        "n": 11,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 0.909091,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 0.5
+        },
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 0.964832,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        },
+        "unanswerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        }
+      },
+      "latency": {
+        "n": 15,
+        "retrieval_plus_rerank_ms_p50": 348.010125,
+        "retrieval_plus_rerank_ms_p95": 2064.56035
+      },
+      "failures": [
+        {
+          "id": "D05",
+          "question": "How does the training objective of BPR differ from the objective used by Neural Collaborative Filtering?",
+          "failures": [
+            "missing_required_source_at_5"
+          ],
+          "expected_sources": [
+            "bpr-rendle-2009",
+            "ncf-he-2017"
+          ],
+          "top_sources": [
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009"
+          ],
+          "error": null
+        }
+      ]
+    },
+    "B_dense_plus_rerank": {
+      "counts": {
+        "n_records": 15,
+        "n_errors": 0,
+        "n_answerable": 11,
+        "n_unanswerable": 4,
+        "review_status": {
+          "unreviewed": 15
+        },
+        "splits": {
+          "dev": 15
+        }
+      },
+      "retrieval": {
+        "n": 11,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 0.909091,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 0.5
+        },
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 0.984687,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 11,
+          "min": 0.41117,
+          "p50": 0.98983,
+          "max": 0.995208
+        },
+        "unanswerable": {
+          "n": 4,
+          "min": 0.52543,
+          "p50": 0.691295,
+          "max": 0.917154
+        }
+      },
+      "latency": {
+        "n": 15,
+        "retrieval_plus_rerank_ms_p50": 12601.878291,
+        "retrieval_plus_rerank_ms_p95": 21273.05067
+      },
+      "failures": [
+        {
+          "id": "D05",
+          "question": "How does the training objective of BPR differ from the objective used by Neural Collaborative Filtering?",
+          "failures": [
+            "missing_required_source_at_5"
+          ],
+          "expected_sources": [
+            "bpr-rendle-2009",
+            "ncf-he-2017"
+          ],
+          "top_sources": [
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009"
+          ],
+          "error": null
+        }
+      ]
+    },
+    "C_hybrid_no_rerank": {
+      "counts": {
+        "n_records": 15,
+        "n_errors": 0,
+        "n_answerable": 11,
+        "n_unanswerable": 4,
+        "review_status": {
+          "unreviewed": 15
+        },
+        "splits": {
+          "dev": 15
+        }
+      },
+      "retrieval": {
+        "n": 11,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 0.909091,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 0.5
+        },
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 0.984687,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        },
+        "unanswerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        }
+      },
+      "latency": {
+        "n": 15,
+        "retrieval_plus_rerank_ms_p50": 899.12325,
+        "retrieval_plus_rerank_ms_p95": 1084.578137
+      },
+      "failures": [
+        {
+          "id": "D05",
+          "question": "How does the training objective of BPR differ from the objective used by Neural Collaborative Filtering?",
+          "failures": [
+            "missing_required_source_at_5"
+          ],
+          "expected_sources": [
+            "bpr-rendle-2009",
+            "ncf-he-2017"
+          ],
+          "top_sources": [
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009"
+          ],
+          "error": null
+        }
+      ]
+    },
+    "D_hybrid_plus_rerank": {
+      "counts": {
+        "n_records": 15,
+        "n_errors": 0,
+        "n_answerable": 11,
+        "n_unanswerable": 4,
+        "review_status": {
+          "unreviewed": 15
+        },
+        "splits": {
+          "dev": 15
+        }
+      },
+      "retrieval": {
+        "n": 11,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 0.909091,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 0.5
+        },
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 0.981611,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 11,
+          "min": 0.640973,
+          "p50": 0.98983,
+          "max": 0.995208
+        },
+        "unanswerable": {
+          "n": 4,
+          "min": 0.652463,
+          "p50": 0.691295,
+          "max": 0.917154
+        }
+      },
+      "latency": {
+        "n": 15,
+        "retrieval_plus_rerank_ms_p50": 15370.534375,
+        "retrieval_plus_rerank_ms_p95": 17771.213534
+      },
+      "failures": [
+        {
+          "id": "D05",
+          "question": "How does the training objective of BPR differ from the objective used by Neural Collaborative Filtering?",
+          "failures": [
+            "missing_required_source_at_5"
+          ],
+          "expected_sources": [
+            "bpr-rendle-2009",
+            "ncf-he-2017"
+          ],
+          "top_sources": [
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009",
+            "bpr-rendle-2009"
+          ],
+          "error": null
+        }
+      ]
+    }
+  },
+  "heldout": {
+    "A_dense_only": {
+      "counts": {
+        "n_records": 20,
+        "n_errors": 0,
+        "n_answerable": 14,
+        "n_unanswerable": 6,
+        "review_status": {
+          "unreviewed": 20
+        },
+        "splits": {
+          "heldout": 20
+        }
+      },
+      "retrieval": {
+        "n": 14,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 1.0,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 1.0
+        },
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 0.99123,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        },
+        "unanswerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        }
+      },
+      "latency": {
+        "n": 20,
+        "retrieval_plus_rerank_ms_p50": 303.948459,
+        "retrieval_plus_rerank_ms_p95": 405.684991
+      },
+      "failures": []
+    },
+    "B_dense_plus_rerank": {
+      "counts": {
+        "n_records": 20,
+        "n_errors": 0,
+        "n_answerable": 14,
+        "n_unanswerable": 6,
+        "review_status": {
+          "unreviewed": 20
+        },
+        "splits": {
+          "heldout": 20
+        }
+      },
+      "retrieval": {
+        "n": 14,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 0.928571,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 0.5
+        },
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 0.974338,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 14,
+          "min": 0.416263,
+          "p50": 0.887292,
+          "max": 0.997274
+        },
+        "unanswerable": {
+          "n": 6,
+          "min": 0.124639,
+          "p50": 0.53696,
+          "max": 0.803019
+        }
+      },
+      "latency": {
+        "n": 20,
+        "retrieval_plus_rerank_ms_p50": 10777.01425,
+        "retrieval_plus_rerank_ms_p95": 13490.134037
+      },
+      "failures": [
+        {
+          "id": "H13",
+          "question": "Which two works in the corpus produce probabilistic outputs, one through a parametric likelihood for count data and one ",
+          "failures": [
+            "missing_required_source_at_5"
+          ],
+          "expected_sources": [
+            "deepar-salinas-2017",
+            "conformal-qr-romano-2019"
+          ],
+          "top_sources": [
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019"
+          ],
+          "error": null
+        }
+      ]
+    },
+    "C_hybrid_no_rerank": {
+      "counts": {
+        "n_records": 20,
+        "n_errors": 0,
+        "n_answerable": 14,
+        "n_unanswerable": 6,
+        "review_status": {
+          "unreviewed": 20
+        },
+        "splits": {
+          "heldout": 20
+        }
+      },
+      "retrieval": {
+        "n": 14,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 0.928571,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 0.5
+        },
+        "mrr_at_10": 0.952381,
+        "ndcg_at_10": 0.949313,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        },
+        "unanswerable": {
+          "n": 0,
+          "min": null,
+          "p50": null,
+          "max": null
+        }
+      },
+      "latency": {
+        "n": 20,
+        "retrieval_plus_rerank_ms_p50": 750.869021,
+        "retrieval_plus_rerank_ms_p95": 1001.218848
+      },
+      "failures": [
+        {
+          "id": "H13",
+          "question": "Which two works in the corpus produce probabilistic outputs, one through a parametric likelihood for count data and one ",
+          "failures": [
+            "missing_required_source_at_5"
+          ],
+          "expected_sources": [
+            "deepar-salinas-2017",
+            "conformal-qr-romano-2019"
+          ],
+          "top_sources": [
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019"
+          ],
+          "error": null
+        }
+      ]
+    },
+    "D_hybrid_plus_rerank": {
+      "counts": {
+        "n_records": 20,
+        "n_errors": 0,
+        "n_answerable": 14,
+        "n_unanswerable": 6,
+        "review_status": {
+          "unreviewed": 20
+        },
+        "splits": {
+          "heldout": 20
+        }
+      },
+      "retrieval": {
+        "n": 14,
+        "hit_at_5": 1.0,
+        "all_sources_at_5": 0.928571,
+        "multi_paper": {
+          "n": 2,
+          "hit_at_5": 1.0,
+          "all_sources_at_5": 0.5
+        },
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 0.961678,
+        "min_ranking_depth": 10,
+        "note": ""
+      },
+      "top_rerank_score": {
+        "answerable": {
+          "n": 14,
+          "min": 0.416263,
+          "p50": 0.887292,
+          "max": 0.997274
+        },
+        "unanswerable": {
+          "n": 6,
+          "min": 0.124639,
+          "p50": 0.53696,
+          "max": 0.803019
+        }
+      },
+      "latency": {
+        "n": 20,
+        "retrieval_plus_rerank_ms_p50": 14820.634271,
+        "retrieval_plus_rerank_ms_p95": 23766.950215
+      },
+      "failures": [
+        {
+          "id": "H13",
+          "question": "Which two works in the corpus produce probabilistic outputs, one through a parametric likelihood for count data and one ",
+          "failures": [
+            "missing_required_source_at_5"
+          ],
+          "expected_sources": [
+            "deepar-salinas-2017",
+            "conformal-qr-romano-2019"
+          ],
+          "top_sources": [
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019",
+            "conformal-qr-romano-2019"
+          ],
+          "error": null
+        }
+      ]
+    }
+  }
+}
