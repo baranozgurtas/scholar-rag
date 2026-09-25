@@ -210,3 +210,22 @@ class TestGenerationEval:
         rec = read_jsonl(run / "generation_D_hybrid_plus_rerank" / "records.jsonl")[0]
         assert FakeGenerator.calls == 0
         assert rec["outcome"] == AnswerOutcome.LOW_RERANK_SCORE
+
+
+class TestSplitReport:
+    def test_splits_reported_separately_and_labelled_indicative(self, tmp_path: Path) -> None:
+        from eval.split_report import split_report
+
+        for qid, split, exp, src in [("d1", "dev", ["a"], "a"), ("h1", "heldout", ["a"], "b")]:
+            rec = {
+                "id": qid, "question": qid, "split": split, "review_status": "unreviewed",
+                "expected_sources": exp, "ranked_sources": [src] * 10, "top_rerank_score": 0.9,
+                "top_dense_score": 0.7, "latency_ms": {"retrieval_ms": 1.0, "rerank_ms": 1.0}, "error": None,
+            }
+            for cfg in ("A_dense_only", "D_hybrid_plus_rerank"):
+                append_jsonl(tmp_path / f"ranked_{cfg}.jsonl", rec)
+        out = split_report(tmp_path)
+        assert out["dev"]["A_dense_only"]["retrieval"]["hit_at_5"] == 1.0
+        assert out["heldout"]["A_dense_only"]["retrieval"]["hit_at_5"] == 0.0
+        md = (tmp_path / "report_by_split.md").read_text()
+        assert md.count("**INDICATIVE** — 1/1 questions") == 2

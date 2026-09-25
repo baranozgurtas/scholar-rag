@@ -1,0 +1,101 @@
+{
+  "kind": "retrieval_only",
+  "created_utc": "2026-09-25T21:34:12+00:00",
+  "git": {
+    "commit": "ddadab57e346ee3f1bcbd77697d6204ba71bfd12",
+    "dirty": false,
+    "n_modified_paths": 0
+  },
+  "models": {
+    "embedding": "BAAI/bge-m3",
+    "reranker": "BAAI/bge-reranker-v2-m3",
+    "embedding_device": "mps",
+    "reranker_device": "mps",
+    "generator": null
+  },
+  "retrieval_settings": {
+    "dense_top_k": 30,
+    "sparse_top_k": 30,
+    "rrf_k": 60,
+    "hybrid_top_k": 20,
+    "final_top_k": 5,
+    "rerank_score_threshold": 0.0
+  },
+  "chunking_settings": {
+    "chunk_size": 1000,
+    "chunk_overlap": 200,
+    "section_aware": true
+  },
+  "ranking_depth": 10,
+  "configs": [
+    {
+      "name": "A_dense_only",
+      "description": "Dense only",
+      "candidates": "dense",
+      "use_reranker": false
+    },
+    {
+      "name": "B_dense_plus_rerank",
+      "description": "Dense + cross-encoder reranker",
+      "candidates": "dense",
+      "use_reranker": true
+    },
+    {
+      "name": "C_hybrid_no_rerank",
+      "description": "Hybrid (dense + sparse, RRF)",
+      "candidates": "hybrid",
+      "use_reranker": false
+    },
+    {
+      "name": "D_hybrid_plus_rerank",
+      "description": "Hybrid + cross-encoder reranker",
+      "candidates": "hybrid",
+      "use_reranker": true
+    }
+  ],
+  "corpus": {
+    "n_pdfs": 15,
+    "pdfs": {
+      "adam-kingma-2014": "eab9c73ae2ceda88",
+      "bge-m3-chen-2024": "eb38e53565da260d",
+      "bpr-rendle-2009": "03a873c778deceb9",
+      "causal-forest-wager-2018": "4ce3bc946f2f3aae",
+      "colbertv2-santhanam-2022": "46e0a2712eabf9e0",
+      "conformal-qr-romano-2019": "e9483113d0563a6b",
+      "data-discontents-paullada-2020": "fe6199aad2097552",
+      "deepar-salinas-2017": "c668d936226b0a9e",
+      "dropout-hinton-2012": "9970461699525326",
+      "lost-in-the-middle-2023": "653b29619eae2ae4",
+      "n-beats-oreshkin-2019": "09878c6971ee060b",
+      "ncf-he-2017": "45177d4c9b98cc30",
+      "rag-lewis-2020": "23e3249e9a1e7541",
+      "ragas-es-2023": "6c24762a3f277fd1",
+      "xgboost-chen-2016": "52bc282c922a2391"
+    },
+    "qdrant_backend": "embedded:./qdrant_local",
+    "qdrant_collection": "research_papers",
+    "qdrant_points": 1278,
+    "qdrant_unique_sources": 15
+  },
+  "questions": {
+    "path": "eval/questions_v2_draft.jsonl",
+    "sha256": "ac4853c50364ecd41884e162ddac89240480fba29989098b70ea60c96aebf390",
+    "n": 22,
+    "n_answerable": 15,
+    "n_unanswerable": 7,
+    "review_status": {
+      "unreviewed": 22
+    }
+  },
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-26.3.1-arm64-arm-64bit",
+    "packages": {
+      "torch": "2.5.1",
+      "FlagEmbedding": "1.3.2",
+      "transformers": "4.44.2",
+      "qdrant-client": "1.12.1",
+      "langchain-ollama": "0.2.0"
+    }
+  }
+}
