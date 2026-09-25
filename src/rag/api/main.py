@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from rag.api.dependencies import get_state, init_state
+from rag.api.dependencies import AppState, get_state, init_state, set_state
 from rag.api.routes import router
 from rag.config import get_settings
 from rag.logging_config import configure_logging, get_logger
@@ -37,10 +37,15 @@ _STATIC_DIR = _PROJECT_ROOT / "static"
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Startup: build singletons. Shutdown: flush tracers."""
+    """Startup: build singletons (unless injected). Shutdown: flush tracers."""
     configure_logging()
     logger.info("api_starting", version=get_settings().app_version)
-    state = init_state()
+    injected: AppState | None = getattr(app.state, "injected_state", None)
+    if injected is not None:
+        set_state(injected)
+        state = injected
+    else:
+        state = init_state()
     logger.info(
         "api_ready",
         collection=state.settings.vectorstore.collection,
@@ -56,15 +61,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.warning("shutdown_flush_failed", error=str(e))
 
 
-def create_app() -> FastAPI:
-    """App factory (lets tests build isolated app instances)."""
+def create_app(state: AppState | None = None) -> FastAPI:
+    """App factory (lets tests build isolated app instances).
+
+    Args:
+        state: Prebuilt AppState. When given, startup skips `init_state()`,
+            so no models are loaded and no Qdrant connection is made.
+    """
     settings = get_settings()
     app = FastAPI(
         title="Scholar RAG",
         description=(
             "Production-grade RAG system for academic literature QA with "
             "hybrid retrieval (BGE-M3 dense + sparse) and BGE cross-encoder "
-            "reranking, served by Qwen2.5:7b via Ollama."
+            "reranking, served by a local Ollama model."
         ),
         version=settings.app_version,
         lifespan=lifespan,
@@ -72,6 +82,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         openapi_url="/openapi.json",
     )
+    app.state.injected_state = state
 
     app.add_middleware(
         CORSMiddleware,

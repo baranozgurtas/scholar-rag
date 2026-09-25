@@ -30,10 +30,10 @@ class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
-    generator_model: str = Field(default="qwen2.5:14b", alias="GENERATOR_MODEL")
+    generator_model: str = Field(default="qwen2.5:7b", alias="GENERATOR_MODEL")
     generator_temperature: float = Field(default=0.1, alias="GENERATOR_TEMPERATURE")
     generator_max_tokens: int = Field(default=1024, alias="GENERATOR_MAX_TOKENS")
-    judge_model: str = Field(default="qwen2.5:14b", alias="JUDGE_MODEL")
+    judge_model: str = Field(default="qwen2.5:7b", alias="JUDGE_MODEL")
     judge_temperature: float = Field(default=0.0, alias="JUDGE_TEMPERATURE")
 
 
@@ -58,12 +58,15 @@ class VectorStoreSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
+    # If set, use qdrant-client's embedded local mode at this directory instead
+    # of a server (no Docker needed; single process only, exact search).
+    path: str | None = Field(default=None, alias="QDRANT_PATH")
     api_key: str | None = Field(default=None, alias="QDRANT_API_KEY")
     collection: str = Field(default="research_papers", alias="QDRANT_COLLECTION")
     vector_size: int = Field(default=1024, alias="QDRANT_VECTOR_SIZE")
     prefer_grpc: bool = Field(default=False, alias="QDRANT_PREFER_GRPC")
 
-    @field_validator("api_key", mode="before")
+    @field_validator("api_key", "path", mode="before")
     @classmethod
     def _empty_to_none(cls, v: str | None) -> str | None:
         if isinstance(v, str) and not v.strip():
@@ -81,6 +84,9 @@ class RetrievalSettings(BaseSettings):
     rrf_k: int = Field(default=60, alias="RETRIEVAL_RRF_K")
     hybrid_top_k: int = Field(default=20, alias="RETRIEVAL_HYBRID_TOP_K")
     final_top_k: int = Field(default=5, alias="RETRIEVAL_FINAL_TOP_K")
+    # Gate on the top-1 reranker score (sigmoid, 0 to 1): abstain before generation
+    # if the best candidate scores below this. <= 0 disables the gate (default).
+    # Choose a value with `python -m eval.select_threshold` on the dev split only.
     rerank_score_threshold: float = Field(default=0.0, alias="RETRIEVAL_RERANK_SCORE_THRESHOLD")
 
 

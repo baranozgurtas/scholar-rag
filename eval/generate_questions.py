@@ -1,23 +1,16 @@
-"""Generate the eval question set.
+"""Generate LLM-written (synthetic) eval questions.
 
-Three sources combined:
+This produced the 20 synthetic questions in `eval/questions.jsonl` (plus the
+5 hard-coded adversarial ones below). Synthetic questions are written by the
+same model family that answers them and are NOT human-validated; every
+generated record is tagged `review_status: "unreviewed"`.
 
-1. **Synthetic** (30 questions): Qwen2.5:14b reads section excerpts and
-   produces (question, reference_answer, type) triples in strict JSON.
-   Distribution: 10 single-paper, 10 cross-paper (forces multi-doc retrieval),
-   10 multi-cluster (forces semantic generalization across domains).
+The former 15 `[FILL IN]` manual templates are no longer emitted: drafts for
+them (with machine-checked evidence quotes, still awaiting human review) live
+in `eval/questions_v2_draft.jsonl`.
 
-2. **Manual** (15 questions, template): a JSONL template the user can fill
-   in 30 minutes. Skeletons cover factoid / comparison / methodology /
-   reasoning question types — explicit slots for question + answer +
-   expected source papers.
-
-3. **Adversarial** (5 questions, hard-coded): designed to be unanswerable
-   from the indexed corpus, to measure abstention rate (should be 5/5).
-
-Output: `eval/questions.jsonl` — every line a record with fields:
-    question, reference_answer, expected_sources (list of paper aliases),
-    expected_clusters, question_type, source_kind (synthetic|manual|adversarial)
+Output defaults to `eval/questions_synthetic_new.jsonl` so re-running the
+generator never overwrites the question set behind the committed results.
 """
 
 from __future__ import annotations
@@ -27,10 +20,11 @@ import json
 import random
 import sys
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from eval.questions import EvalQuestion
 from rag.config import get_settings
 from rag.generation.llm import build_generator_llm
 from rag.generation.prompts import QGEN_SYSTEM, QGEN_USER
@@ -39,20 +33,7 @@ from rag.logging_config import configure_logging, get_logger
 
 logger = get_logger(__name__)
 
-QUESTIONS_OUT = Path(__file__).resolve().parent / "questions.jsonl"
-
-
-@dataclass
-class EvalQuestion:
-    """One eval question with ground truth."""
-
-    question: str
-    reference_answer: str
-    expected_sources: list[str] = field(default_factory=list)
-    expected_clusters: list[str] = field(default_factory=list)
-    question_type: str = "factoid"
-    source_kind: str = "synthetic"  # synthetic | manual | adversarial
-    notes: str = ""
+QUESTIONS_OUT = Path(__file__).resolve().parent / "questions_synthetic_new.jsonl"
 
 
 # ─── Adversarial set (hard-coded, defensive) ──────────────────────
@@ -64,6 +45,7 @@ ADVERSARIAL_QUESTIONS: list[EvalQuestion] = [
         expected_clusters=[],
         question_type="out_of_corpus_factoid",
         source_kind="adversarial",
+        review_status="handwritten",
         notes="Specific runtime benchmark not in any indexed paper; should abstain.",
     ),
     EvalQuestion(
@@ -73,6 +55,7 @@ ADVERSARIAL_QUESTIONS: list[EvalQuestion] = [
         expected_clusters=[],
         question_type="out_of_corpus_factoid",
         source_kind="adversarial",
+        review_status="handwritten",
         notes="Not in any indexed paper; should abstain (and not hallucinate a number).",
     ),
     EvalQuestion(
@@ -82,6 +65,7 @@ ADVERSARIAL_QUESTIONS: list[EvalQuestion] = [
         expected_clusters=[],
         question_type="hallucination_trap",
         source_kind="adversarial",
+        review_status="handwritten",
         notes="BLIRT-2024 is a fabricated benchmark name. Model must not invent a number.",
     ),
     EvalQuestion(
@@ -91,6 +75,7 @@ ADVERSARIAL_QUESTIONS: list[EvalQuestion] = [
         expected_clusters=[],
         question_type="out_of_scope_codegen",
         source_kind="adversarial",
+        review_status="handwritten",
         notes="Out-of-scope task (code generation); also not in indexed papers.",
     ),
     EvalQuestion(
@@ -100,49 +85,10 @@ ADVERSARIAL_QUESTIONS: list[EvalQuestion] = [
         expected_clusters=[],
         question_type="out_of_domain",
         source_kind="adversarial",
+        review_status="handwritten",
         notes="Completely off-topic; should abstain rather than fall back to general knowledge.",
     ),
 ]
-
-
-# ─── Manual template (15 placeholders for the user to fill) ───────
-def _manual_template() -> list[EvalQuestion]:
-    """Return 15 EvalQuestion stubs the user can fill in by hand.
-
-    Each carries a hint in `notes` describing the question type to write.
-    """
-    stubs: list[tuple[str, str, list[str]]] = [
-        ("methodology", "RAG paper: describe the retriever+generator setup", ["rag-lewis-2020"]),
-        ("methodology", "BGE-M3: how are dense+sparse jointly learned?", ["bge-m3-chen-2024"]),
-        ("comparison", "ColBERTv2 vs DPR on retrieval architecture", ["colbertv2-santhanam-2022"]),
-        ("reasoning", "RAGAS: why is faithfulness decomposed into claims?", ["ragas-es-2023"]),
-        ("factoid", "Lost in the Middle: which position has the lowest recall?", ["lost-in-the-middle-2023"]),
-        ("methodology", "N-BEATS: how do the backcast/forecast blocks work?", ["n-beats-oreshkin-2019"]),
-        ("methodology", "Conformal QR: how are intervals calibrated?", ["conformal-qr-romano-2019"]),
-        ("methodology", "DeepAR: what likelihood family is used?", ["deepar-salinas-2017"]),
-        ("comparison", "BPR vs NCF: what's the loss formulation difference?", ["bpr-rendle-2009", "ncf-he-2017"]),
-        ("factoid", "XGBoost: what is the regularization term?", ["xgboost-chen-2016"]),
-        ("methodology", "Dropout: how does it act at training vs inference?", ["dropout-srivastava-2014"]),
-        ("methodology", "Adam: how are first/second moments combined?", ["adam-kingma-2014"]),
-        ("methodology", "Causal Forest: how is honest splitting defined?", ["causal-forest-wager-2018"]),
-        ("reasoning", "ML Tips: pick one bias-variance insight", ["ml-tips-domingos-2012"]),
-        ("cross_cluster", "How does conformal prediction (forecasting) relate to RAG abstention?",
-            ["conformal-qr-romano-2019", "rag-lewis-2020"]),
-    ]
-    out: list[EvalQuestion] = []
-    for qtype, hint, sources in stubs:
-        out.append(
-            EvalQuestion(
-                question=f"[FILL IN] {hint}",
-                reference_answer="[FILL IN — 1 to 3 sentences drawn from the paper text]",
-                expected_sources=sources,
-                expected_clusters=[],  # auto-filled below from papers.txt
-                question_type=qtype,
-                source_kind="manual",
-                notes=f"Template — hint: {hint}",
-            )
-        )
-    return out
 
 
 # ─── Synthetic generation via Qwen ────────────────────────────────
@@ -226,6 +172,8 @@ def _generate_for_paper(
                 question_type=qt,
                 source_kind="synthetic",
                 notes=f"Generated from §{section_label}",
+                split="dev",
+                review_status="unreviewed",
             )
         )
     return questions
@@ -309,7 +257,6 @@ def generate_synthetic_questions(
 # ─── Orchestrator ────────────────────────────────────────────────
 def build_question_set(
     n_synthetic: int = 30,
-    include_manual_template: bool = True,
     include_adversarial: bool = True,
     out_path: Path = QUESTIONS_OUT,
     skip_synthetic: bool = False,
@@ -318,8 +265,6 @@ def build_question_set(
     questions: list[EvalQuestion] = []
     if not skip_synthetic:
         questions.extend(generate_synthetic_questions(n_total=n_synthetic))
-    if include_manual_template:
-        questions.extend(_manual_template())
     if include_adversarial:
         questions.extend(ADVERSARIAL_QUESTIONS)
 
@@ -333,7 +278,6 @@ def build_question_set(
         path=str(out_path),
         total=len(questions),
         synthetic=sum(1 for q in questions if q.source_kind == "synthetic"),
-        manual=sum(1 for q in questions if q.source_kind == "manual"),
         adversarial=sum(1 for q in questions if q.source_kind == "adversarial"),
     )
     return out_path
@@ -343,7 +287,6 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging()
     p = argparse.ArgumentParser(description="Generate eval question set.")
     p.add_argument("--n-synthetic", type=int, default=30)
-    p.add_argument("--no-manual", action="store_true")
     p.add_argument("--no-adversarial", action="store_true")
     p.add_argument("--skip-synthetic", action="store_true", help="Skip Qwen-based generation.")
     p.add_argument("--out", type=Path, default=QUESTIONS_OUT)
@@ -351,7 +294,6 @@ def main(argv: list[str] | None = None) -> int:
 
     out = build_question_set(
         n_synthetic=args.n_synthetic,
-        include_manual_template=not args.no_manual,
         include_adversarial=not args.no_adversarial,
         out_path=args.out,
         skip_synthetic=args.skip_synthetic,

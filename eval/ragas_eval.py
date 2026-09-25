@@ -1,74 +1,75 @@
-"""RAGAS evaluation with local Qwen2.5:14b judge.
+"""RAGAS evaluation with a local Ollama judge (JUDGE_MODEL).
 
-We run four RAGAS metrics on the production config (Hybrid + Reranker):
+Scores the saved output of `eval.generation_eval` (one config); it does not
+re-run retrieval or generation, so only the judge (and the RAGAS embedding
+model) is loaded. Four RAGAS metrics:
 - **faithfulness**: every claim in the answer is grounded in the retrieved context
 - **answer_relevancy**: the answer addresses the question
 - **context_precision**: ratio of relevant chunks among retrieved
 - **context_recall**: ratio of relevant info in retrieved vs ground truth
 
-Both the judge LLM and the embeddings used by RAGAS are local (Qwen via
-Ollama + BGE-M3 via sentence-transformers) — no OpenAI keys, no data egress,
-fully reproducible on a developer's Mac.
+Both the judge LLM and the embeddings used by RAGAS are local (JUDGE_MODEL
+and nomic-embed-text, both via Ollama): no OpenAI keys, no data egress.
 
-Adversarial questions are evaluated separately: we report the abstention
-rate (should be 1.0 = all 5 abstained), not RAGAS metrics, because RAGAS
-metrics aren't meaningful for "I don't know" answers.
+Only answerable questions whose answer was released (not abstained or
+withheld) are scored; RAGAS metrics are not meaningful for abstentions.
+Unanswerable-question behaviour is reported by `eval.generation_eval`.
+
+Caveats: the judge is the same local model family as the generator, and a
+judge call that fails is reported as missing (None), never as 0 or 1.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
 
-from eval.generate_questions import EvalQuestion
-from eval.retrieval_ablation import QUESTIONS_PATH, RESULTS_DIR, load_questions
+from eval.questions import PROJECT_ROOT, load_questions
 from rag.config import get_settings
-from rag.embeddings.bge_embedder import build_embedder
 from rag.generation.llm import build_judge_llm
-from rag.generation.rag_chain import build_rag_chain_from_settings
 from rag.logging_config import configure_logging, get_logger
-from rag.retrieval.dense_retriever import DenseRetriever
-from rag.retrieval.hybrid_retriever import HybridRetriever
-from rag.retrieval.reranker import CrossEncoderReranker
-from rag.retrieval.sparse_retriever import SparseRetriever
-from rag.vectorstore.qdrant_store import QdrantStore
 
 logger = get_logger(__name__)
 
+RAGAS_METRICS = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
 
-def _run_pipeline_over_questions(
-    questions: list[EvalQuestion],
-) -> list[dict[str, Any]]:
-    """Run the production RAG pipeline over each question and collect outputs."""
-    settings = get_settings()
-    embedder = build_embedder(settings.embedding)
-    store = QdrantStore(embedder=embedder, settings=settings.vectorstore)
-    store.ensure_collection(recreate=False)
-    dense = DenseRetriever(store=store, embedder=embedder)
-    sparse = SparseRetriever(store=store, embedder=embedder)
-    hybrid = HybridRetriever(dense=dense, sparse=sparse)
-    reranker = CrossEncoderReranker(settings=settings.embedding)
-    chain = build_rag_chain_from_settings(hybrid=hybrid, reranker=reranker, use_reranker=True)
 
-    out: list[dict[str, Any]] = []
-    for i, q in enumerate(questions, start=1):
-        resp = chain.answer(q.question, debug=True)
+def _num(x: Any) -> float | None:
+    """float, or None for missing / NaN judge outputs."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(v) else v
+
+
+def load_generation_records(records_path: Path) -> list[dict[str, Any]]:
+    """Generation records + reference answers from the run's question file."""
+    manifest = json.loads((records_path.parent / "manifest.json").read_text())
+    qpath = PROJECT_ROOT / manifest["questions"]["path"]
+    refs = {q.id: q.reference_answer for q in load_questions(qpath)}
+    out = []
+    for line in records_path.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
         out.append(
             {
-                "question": q.question,
-                "answer": resp.answer,
-                "abstained": resp.abstained,
-                "contexts": [c.get("text") or c.get("text_preview", "") for c in resp.retrieved_chunks],
-                "ground_truth": q.reference_answer,
-                "source_kind": q.source_kind,
-                "expected_sources": q.expected_sources,
+                "id": r["id"],
+                "question": r["question"],
+                "answer": r["answer"],
+                "abstained": r["abstained"],
+                "contexts": [c["text"] for c in r["context_chunks"]],
+                "ground_truth": refs[r["id"]],
+                "source_kind": r["source_kind"],
+                "expected_sources": r["expected_sources"],
+                "outcome": r["outcome"],
             }
         )
-        if i % 5 == 0:
-            logger.info("ragas_pipeline_progress", done=i, total=len(questions))
     return out
 
 
@@ -98,8 +99,8 @@ def _run_ragas(records: list[dict[str, Any]]) -> dict[str, Any]:
         logger.error("ragas_import_failed", error=str(e))
         raise
 
-    # Filter out adversarial questions for RAGAS (handled separately)
-    scorable = [r for r in records if r.get("source_kind") != "adversarial"]
+    # Score only answerable questions with a released answer
+    scorable = [r for r in records if r.get("expected_sources") and not r.get("abstained")]
     if not scorable:
         return {"aggregate": {}, "per_question": [], "n_scored": 0}
 
@@ -136,34 +137,24 @@ def _run_ragas(records: list[dict[str, Any]]) -> dict[str, Any]:
     logger.info("ragas_evaluate_done")
 
     # ragas returns a dataframe-like Result; aggregate via to_pandas if possible
-    try:
-        df = result.to_pandas()
-        aggregate = {
-            "faithfulness": float(df["faithfulness"].mean()),
-            "answer_relevancy": float(df["answer_relevancy"].mean()),
-            "context_precision": float(df["context_precision"].mean()),
-            "context_recall": float(df["context_recall"].mean()),
-        }
-        per_question = []
-        for r, (_, row) in zip(scorable, df.iterrows(), strict=True):
-            per_question.append(
-                {
-                    "question": r["question"],
-                    "source_kind": r["source_kind"],
-                    "faithfulness": float(row.get("faithfulness", 0.0) or 0.0),
-                    "answer_relevancy": float(row.get("answer_relevancy", 0.0) or 0.0),
-                    "context_precision": float(row.get("context_precision", 0.0) or 0.0),
-                    "context_recall": float(row.get("context_recall", 0.0) or 0.0),
-                }
-            )
-    except Exception as e:
-        logger.warning("ragas_to_pandas_failed_fallback", error=str(e))
-        # Fallback: try dict()
-        aggregate = dict(result) if hasattr(result, "__iter__") else {}
-        per_question = []
+    df = result.to_pandas()
+    per_question = []
+    for r, (_, row) in zip(scorable, df.iterrows(), strict=True):
+        per_question.append(
+            {"question": r["question"], "source_kind": r["source_kind"]}
+            | {m: _num(row.get(m)) for m in RAGAS_METRICS}
+        )
+    aggregate: dict[str, float] = {}
+    n_valid: dict[str, int] = {}
+    for m in RAGAS_METRICS:
+        vals = [pq[m] for pq in per_question if pq[m] is not None]
+        n_valid[m] = len(vals)
+        if vals:
+            aggregate[m] = sum(vals) / len(vals)
 
     return {
         "aggregate": {k: round(v, 4) for k, v in aggregate.items()},
+        "n_valid_per_metric": n_valid,
         "per_question": per_question,
         "n_scored": len(scorable),
     }
@@ -172,7 +163,7 @@ def _run_ragas(records: list[dict[str, Any]]) -> dict[str, Any]:
 def _write_outputs(
     pipeline_records: list[dict[str, Any]],
     ragas_result: dict[str, Any],
-    out_dir: Path = RESULTS_DIR,
+    out_dir: Path,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -186,58 +177,54 @@ def _write_outputs(
     )
 
     # Markdown summary
+    settings = get_settings()
     agg = ragas_result.get("aggregate", {})
+    n_valid = ragas_result.get("n_valid_per_metric", {})
     n_scored = ragas_result.get("n_scored", 0)
-    adv_records = [r for r in pipeline_records if r.get("source_kind") == "adversarial"]
-    adv_abst = sum(1 for r in adv_records if r["abstained"]) / max(1, len(adv_records))
+    unans = [r for r in pipeline_records if not r.get("expected_sources")]
+    unans_abst = sum(1 for r in unans if r["abstained"])
+
+    def cell(m: str) -> str:
+        v = agg.get(m)
+        return "n/a" if v is None else f"{v:.3f} (n={n_valid.get(m, 0)})"
 
     md = [
         "# RAGAS Evaluation Summary\n",
-        "**Production config**: Hybrid retrieval (BGE-M3 dense + sparse, RRF) + "
-        "BGE-reranker-v2-m3 cross-encoder + Qwen2.5:14b generator.\n",
-        "**Judge LLM**: Qwen2.5:14b (local, T=0).\n",
-        f"**Eval set size**: {n_scored} scorable (excluding {len(adv_records)} adversarial).\n",
+        f"**Generator**: {settings.llm.generator_model}. "
+        f"**Judge**: {settings.llm.judge_model} (T={settings.llm.judge_temperature}); "
+        "same model family, so absolute scores may be biased.\n",
+        f"**Scored**: {n_scored} answerable questions with a released answer.\n",
         "",
-        "## RAGAS metrics\n",
-        "| Metric | Score | What it measures |",
+        "## RAGAS metrics (LLM-judged, not human-verified)\n",
+        "| Metric | Score | What it estimates |",
         "|---|---|---|",
-        f"| **Faithfulness** | {agg.get('faithfulness', 0):.3f} | Fraction of answer claims grounded in retrieved context |",
-        f"| **Answer relevancy** | {agg.get('answer_relevancy', 0):.3f} | Whether the answer addresses the question |",
-        f"| **Context precision** | {agg.get('context_precision', 0):.3f} | Fraction of retrieved chunks that are relevant |",
-        f"| **Context recall** | {agg.get('context_recall', 0):.3f} | Fraction of ground-truth info captured by retrieval |",
+        f"| Faithfulness | {cell('faithfulness')} | Share of answer statements the judge infers from the context |",
+        f"| Answer relevancy | {cell('answer_relevancy')} | Whether the answer addresses the question |",
+        f"| Context precision | {cell('context_precision')} | Share of retrieved chunks judged relevant |",
+        f"| Context recall | {cell('context_recall')} | Share of reference-answer content found in context |",
         "",
-        "## Adversarial abstention",
-        f"- Adversarial questions: **{len(adv_records)}**",
-        f"- Correctly abstained: **{int(adv_abst * len(adv_records))}** ({adv_abst*100:.0f}%)",
+        f"Unanswerable questions abstained: {unans_abst}/{len(unans)}",
         "",
     ]
     (out_dir / "ragas_summary.md").write_text("\n".join(md) + "\n")
     logger.info("ragas_outputs_written", dir=str(out_dir))
 
 
-def run_ragas_eval(
-    questions_path: Path = QUESTIONS_PATH,
-    out_dir: Path = RESULTS_DIR,
-) -> dict[str, Any]:
-    questions = load_questions(questions_path)
-    if not questions:
-        logger.error("no_questions_for_ragas")
-        return {}
-    records = _run_pipeline_over_questions(questions)
+def run_ragas_eval(records_path: Path, out_dir: Path | None = None) -> dict[str, Any]:
+    records = load_generation_records(records_path)
     ragas_result = _run_ragas(records)
-    _write_outputs(records, ragas_result, out_dir)
+    _write_outputs(records, ragas_result, out_dir or records_path.parent)
     return ragas_result
 
 
 def main(argv: list[str] | None = None) -> int:
     configure_logging()
-    p = argparse.ArgumentParser(description="RAGAS evaluation with local Qwen judge.")
-    p.add_argument("--questions", type=Path, default=QUESTIONS_PATH)
-    p.add_argument("--out-dir", type=Path, default=RESULTS_DIR)
+    p = argparse.ArgumentParser(description="RAGAS (LLM judge) on saved generation records.")
+    p.add_argument("records", type=Path, help="records.jsonl from eval.generation_eval")
+    p.add_argument("--out-dir", type=Path, default=None)
     args = p.parse_args(argv)
-    result = run_ragas_eval(args.questions, args.out_dir)
-    agg = result.get("aggregate", {})
-    print(f"RAGAS aggregate: {agg}")
+    result = run_ragas_eval(args.records, args.out_dir)
+    print(f"RAGAS aggregate (LLM-judged): {result.get('aggregate', {})}")
     return 0
 
 
@@ -245,4 +232,4 @@ if __name__ == "__main__":
     sys.exit(main())
 
 
-__all__ = ["main", "run_ragas_eval"]
+__all__ = ["load_generation_records", "main", "run_ragas_eval"]

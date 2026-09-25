@@ -98,10 +98,11 @@ on this corpus size.
   cited in `docs/architecture.md`).
 
 **Why Qwen2.5:7b specifically over Llama 3.1, Mistral, DeepSeek**:
-strongest open-source 14B class as of late 2024 on Chinese-English
-multilingual + reasoning + instruction following benchmarks. Apple
-Metal acceleration via Ollama works smoothly. 14B fits comfortably in
-24GB unified memory (M1/M2/M3 Pro/Max).
+a strong open-weight instruction-following model in the 7B class that
+runs on a laptop via Ollama with Apple Metal acceleration. (Earlier
+drafts of this project defaulted to qwen2.5:14b; the default is now
+7b everywhere. The committed legacy results did not record which
+generator was used.)
 
 **Why same model for generator and judge**: it's a deliberately
 controlled bias. Differences between configs in ablation are still
@@ -121,11 +122,24 @@ tested.
 high-quality manually). Statistical power suffers; the eval becomes
 a vibe check.
 
-**Why include 5 adversarial**: hallucination handling is the failure
-mode that makes RAG systems dangerous in production. The eval should
-measure it explicitly. Adversarial questions force the abstention path
-and provide a hard-to-fake metric: "5/5 correctly abstained" is a
-single number that defends an entire failure mode.
+**Why include unanswerable questions**: hallucination handling is the
+failure mode that makes RAG systems dangerous in production, so the
+eval measures it explicitly as the *false answer rate on unanswerable
+questions*. The original 5 adversarial questions are obvious
+out-of-domain cases (ramen restaurants, Claude 3 parameters); "5/5
+abstained" on them is a smoke test, not evidence of general abstention
+quality (95% Wilson interval for 0/5 false answers: 0–43%). The v2
+draft set adds near-miss unanswerable questions whose topic is in the
+corpus but whose specific fact is not (see `docs/evaluation.md`).
+
+**What actually produced the 5/5**: the rerank threshold defaulted to
+0.0, which disabled the pre-generation gate, so every one of those
+questions was sent to the LLM with 5 chunks and the *generator* chose
+to write the abstention sentence (prompt rule 4). The legacy detector
+was a substring test, and in configs A, B and D 2–3 of the 5
+"abstentions" still contained citation tags, i.e. probably mixed
+outputs (the answer text was not saved, so this cannot be confirmed).
+The answer policy now withholds such mixed outputs explicitly.
 
 ## 7. Serving: FastAPI as the source of truth, Streamlit as a thin client
 

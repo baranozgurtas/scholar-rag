@@ -126,7 +126,7 @@ async function sendQuery() {
 function renderAnswer(data, elapsed) {
   const answerText = data.answer || "(empty)";
   const citations = data.citations || [];
-  const checkData = data.citation_check || { all_valid: true, n_extracted: 0, n_valid: 0 };
+  const checkData = data.citation_check || { all_valid: false, n_extracted: 0, n_valid: 0 };
 
   const isAbstain = data.abstained === true;
   // If the system abstained, suppress citation pills inside the answer
@@ -139,11 +139,23 @@ function renderAnswer(data, elapsed) {
   document.getElementById("head-latency").textContent = `${(latency/1000).toFixed(1)}s`;
   document.getElementById("head-cites").textContent = isAbstain ? "abstained" : `${checkData.n_extracted} cites`;
 
+  // Why the system did not answer. Tag checks are structural: a matching tag
+  // means the cited page was in the supplied context, not that it supports the claim.
+  const ABSTAIN_REASONS = {
+    model_abstained: "model declined: context judged insufficient",
+    mixed_abstention: "withheld: model both declined and answered",
+    uncited_answer: "withheld: answer had no citation tags",
+    invalid_citation: "withheld: cited a passage outside the supplied context",
+    generation_error: "withheld: generation failed",
+    no_context: "no passages retrieved",
+    low_rerank_score: "abstained: top rerank score below threshold",
+  };
+  const abstainLabel = ABSTAIN_REASONS[data.outcome] || "abstained";
   const validBadge = isAbstain
-    ? `<span class="badge-ok"><i class="ti ti-shield-check"></i>abstained (no fabrication)</span>`
+    ? `<span class="badge-ok"><i class="ti ti-shield-check"></i>${abstainLabel}</span>`
     : (checkData.all_valid
-        ? `<span class="badge-ok"><i class="ti ti-circle-check"></i>${checkData.n_valid}/${checkData.n_extracted} citations valid</span>`
-        : `<span class="badge-bad"><i class="ti ti-alert-circle"></i>${checkData.n_valid}/${checkData.n_extracted} citations valid</span>`);
+        ? `<span class="badge-ok" title="Tags match supplied passages; this does not verify that the passages support each claim."><i class="ti ti-circle-check"></i>${checkData.n_valid}/${checkData.n_extracted} citation tags match retrieved passages</span>`
+        : `<span class="badge-bad"><i class="ti ti-alert-circle"></i>${checkData.n_valid}/${checkData.n_extracted} citation tags match retrieved passages</span>`);
 
   const retrieval = (data.latency_ms?.retrieval_ms ?? data.latency_ms?.retrieval ?? 0);
   const rerank = (data.latency_ms?.rerank_ms ?? data.latency_ms?.rerank ?? 0);

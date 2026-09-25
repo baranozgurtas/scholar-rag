@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
     User([User]) -->|HTTP| API[FastAPI<br/>/query, /ingest, /health, /stats, /metrics]
-    UI[Streamlit UI<br/>app.py] -.->|HTTP| API
+    UI[Static web UI<br/>static/] -.->|HTTP| API
     EVAL[Eval harness<br/>ablation + RAGAS] -.->|in-process| RAGChain
 
     API --> RAGChain
@@ -17,7 +17,7 @@ flowchart LR
     HR --> RRF[RRF Fusion<br/>k=60]
     RRF --> RR[Cross-Encoder Reranker<br/>BGE-reranker-v2-m3]
     RR --> LLM[Qwen2.5:7b<br/>via Ollama]
-    LLM --> Guards[Citation Guard<br/>regex + fuzzy match]
+    LLM --> Guards[Answer policy<br/>abstention / citation presence / tag validity]
     Guards --> API
 
     API -->|traces| LF[(Langfuse)]
@@ -56,13 +56,13 @@ sequenceDiagram
     H-->>R: 20 candidates
     R->>X: rerank(question, candidates, top_k=5)
     X-->>R: 5 chunks with reranker scores
-    alt no chunks above threshold
-        R-->>A: abstain (no LLM call)
+    alt top-1 rerank score < RETRIEVAL_RERANK_SCORE_THRESHOLD (gate off by default)
+        R-->>A: abstain, outcome=low_rerank_score (no LLM call)
     else
         R->>L: generate(prompt + context)
         L-->>R: answer with citations
-        R->>G: validate(answer, allowed_tags)
-        G-->>R: CitationCheckResult
+        R->>G: apply_answer_policy(answer, allowed_tags)
+        G-->>R: released answer, or abstention text + outcome<br/>(model_abstained, mixed_abstention, uncited_answer, invalid_citation)
     end
     R-->>A: RAGResponse (answer, citations, breakdown, latencies)
     A->>A: emit metrics + Langfuse trace + token ledger
