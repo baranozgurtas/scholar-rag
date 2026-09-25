@@ -200,6 +200,12 @@ def check_resume_compatible(old: dict[str, Any], new: dict[str, Any]) -> None:
 
 # ─── Records ──────────────────────────────────────────────────────
 
+# Question fields carried from candidates → rankings → generation records.
+QUESTION_KEYS = (
+    "id", "question", "split", "review_status", "source_kind", "expected_sources",
+    "question_type", "premise_correction", "inspected_before_freeze", "revision",
+)
+
 
 def question_fields(q: EvalQuestion) -> dict[str, Any]:
     return {
@@ -209,6 +215,10 @@ def question_fields(q: EvalQuestion) -> dict[str, Any]:
         "review_status": q.review_status,
         "source_kind": q.source_kind,
         "expected_sources": q.expected_sources,
+        "question_type": q.question_type,
+        "premise_correction": q.premise_correction,
+        "inspected_before_freeze": q.inspected_before_freeze,
+        "revision": q.revision,
     }
 
 
@@ -216,7 +226,7 @@ def ranked_record(
     cand: dict[str, Any], config: AblationConfig, ranked: list[Any], rerank_ms: float, final_top_k: int
 ) -> dict[str, Any]:
     """Per-question ranking record. `ranked` is a list of RetrievedChunk."""
-    rec = {k: cand[k] for k in ("id", "question", "split", "review_status", "source_kind", "expected_sources")}
+    rec = {k: cand[k] for k in QUESTION_KEYS if k in cand}
     rec |= {
         "config": config.name,
         "ranked_sources": [source_alias(c.source) for c in ranked],
@@ -419,6 +429,7 @@ if __name__ == "__main__":
 
 __all__ = [
     "CONFIGS",
+    "QUESTION_KEYS",
     "RANKING_DEPTH",
     "AblationConfig",
     "PreflightError",

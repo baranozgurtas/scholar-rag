@@ -63,6 +63,17 @@ class EvalQuestion:
     absent_terms: dict[str, list[str]] = field(default_factory=dict)
     # Known problems with this question or its label (kept, not hidden).
     label_issues: list[str] = field(default_factory=list)
+    # False-premise unanswerable items: an answer that corrects the premise is
+    # scored separately from an unsupported answer. Keys: `required_terms_any`
+    # (a correction must mention one), `evidence` (same shape as `evidence`).
+    premise_correction: dict[str, Any] = field(default_factory=dict)
+    # True if this item's retrieval or generation outcomes were inspected
+    # before the split was frozen, so it is NOT a pristine held-out item.
+    inspected_before_freeze: bool = False
+    # Incremented when the question, label or evidence changes.
+    revision: int = 1
+    # Open concerns and resolution notes for the human reviewer.
+    review_notes: list[str] = field(default_factory=list)
 
     @property
     def answerable(self) -> bool:
@@ -144,6 +155,15 @@ def verify_question(q: EvalQuestion, pdf_dir: Path = PDF_DIR) -> list[str]:
                 problems.append(f"{alias} has no page {page}")
             elif normalize_text(quote) not in pages[page - 1]:
                 problems.append(f"quote not found on {alias} p.{page}: {quote[:60]!r}")
+
+    for ev in q.premise_correction.get("evidence", []):
+        pages = pdf_pages(ev["source"], pdf_dir)
+        if normalize_text(ev["quote"]) not in pages[int(ev["page"]) - 1]:
+            problems.append(f"premise evidence not found on {ev['source']} p.{ev['page']}")
+    if q.premise_correction and q.answerable:
+        problems.append("premise_correction is only meaningful for unanswerable items")
+    if not q.answerable and not q.absent_terms and q.split != "legacy_test":
+        problems.append("unanswerable item lists no absent_terms")
 
     if not q.answerable and q.absent_terms:
         scope = q.absent_terms.get("scope", ["*"])

@@ -6,7 +6,7 @@ All deterministic; no model, Ollama or Qdrant needed.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -235,3 +235,76 @@ class TestReviewPacket:
             assert f"### {q.id} ·" in text
         assert "Nothing here is human-reviewed" in text
         assert "review status: unreviewed" in text
+
+
+class TestFalsePremiseScoring:
+    PC: ClassVar[dict[str, list[str]]] = {"required_terms_any": ["claude-1.3", "claude 1.3"]}
+
+    def _fp(self, id_: str, abstained: bool, answer: str) -> dict[str, Any]:
+        r = _rec(id_, [], ["lost-in-the-middle-2023"], abstained)
+        r |= {"premise_correction": self.PC, "answer": answer}
+        return r
+
+    def test_correction_scored_separately_from_unsupported_answer(self) -> None:
+        recs = [
+            self._fp("abst", True, "I could not find sufficient information..."),
+            self._fp("corrected", False, "The paper evaluates Claude-1.3, not Claude 3 [Paper: X | p.2 | §intro]."),
+            self._fp("unsupported", False, "Claude 3 Opus scores 71% [Paper: X | p.2 | §intro]."),
+            _rec("plain_unans", [], ["x"], False),
+        ]
+        s = summarize(recs)
+        fp = s["abstention"]["false_premise"]
+        assert (fp["n"], fp["abstained"], fp["premise_corrected"], fp["unsupported_answer"]) == (3, 1, 1, 1)
+        fa = s["abstention"]["false_answer_on_unanswerable"]
+        assert (fa["count"], fa["n"]) == (2, 4)  # 'unsupported' + 'plain_unans'; not 'corrected'
+        fails = {f["id"]: f["failures"] for f in s["failures"]}
+        assert fails["unsupported"] == ["false_answer"]
+        assert fails["corrected"][0].startswith("premise_corrected")
+
+    def test_premise_terms_do_not_count_when_abstained(self) -> None:
+        from eval.harness import premise_corrected
+
+        assert not premise_corrected(self._fp("x", True, "Claude-1.3 ..."))
+
+
+class TestDraftSetRules:
+    @pytest.fixture(scope="class")
+    def qs(self) -> list[EvalQuestion]:
+        return load_questions(QUESTIONS_V2_DRAFT_PATH)
+
+    def test_every_unanswerable_explains_why(self, qs: list[EvalQuestion]) -> None:
+        for q in qs:
+            if not q.answerable:
+                assert q.absent_terms.get("terms"), q.id
+
+    def test_previously_inspected_items_are_flagged(self, qs: list[EvalQuestion]) -> None:
+        old = {f"D{i:02d}" for i in range(1, 11)} | {f"H{i:02d}" for i in range(1, 13)}
+        for q in qs:
+            assert q.inspected_before_freeze == (q.id in old), q.id
+
+    def test_hard_items_do_not_name_their_target_paper(self, qs: list[EvalQuestion]) -> None:
+        names = {
+            "rag-lewis-2020": ["rag ", "lewis"], "lost-in-the-middle-2023": ["lost in the middle"],
+            "bge-m3-chen-2024": ["bge", "m3-embedding"], "dropout-hinton-2012": ["hinton", "dropout"],
+            "deepar-salinas-2017": ["deepar"], "conformal-qr-romano-2019": ["romano"],
+            "bpr-rendle-2009": ["bpr", "rendle"], "ncf-he-2017": ["ncf", "neural collaborative"],
+            "causal-forest-wager-2018": ["causal forest", "wager"], "colbertv2-santhanam-2022": ["colbert"],
+            "n-beats-oreshkin-2019": ["n-beats"], "xgboost-chen-2016": ["xgboost"],
+        }
+        hard = [q for q in qs if q.source_kind == "drafted_hard"]
+        assert len(hard) >= 9
+        for q in hard:
+            text = q.question.lower()
+            for src in q.expected_sources:
+                assert not any(n in text for n in names[src]), (q.id, src)
+
+    def test_multi_paper_items_have_evidence_from_every_source(self, qs: list[EvalQuestion]) -> None:
+        multi = [q for q in qs if len(q.expected_sources) > 1]
+        assert len(multi) >= 4
+        for q in multi:
+            assert {e["source"] for e in q.evidence} >= set(q.expected_sources), q.id
+
+    def test_d10_is_answerable_and_h12_is_false_premise(self, qs: list[EvalQuestion]) -> None:
+        by = {q.id: q for q in qs}
+        assert by["D10"].answerable and by["D10"].expected_sources == ["ncf-he-2017"]
+        assert not by["H12"].answerable and by["H12"].premise_correction["required_terms_any"]

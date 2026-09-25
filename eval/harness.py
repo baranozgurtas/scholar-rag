@@ -26,7 +26,7 @@ import math
 from collections import Counter
 from typing import Any
 
-from eval.metrics import hit_at_k, mrr_at_k, ndcg_at_k
+from eval.metrics import all_sources_at_k, hit_at_k, mrr_at_k, ndcg_at_k
 
 WITHHELD_OUTCOMES = {"mixed_abstention", "uncited_answer", "invalid_citation"}
 
@@ -91,6 +91,20 @@ def _mean(xs: list[float]) -> float | None:
     return sum(xs) / len(xs) if xs else None
 
 
+def premise_corrected(r: dict[str, Any]) -> bool:
+    """Released answer to a false-premise item that states the correction.
+
+    Requires the answer to have been released (so it carried at least one
+    citation tag matching a supplied passage) and to mention one of the
+    item's `premise_correction.required_terms_any` (case-insensitive).
+    """
+    pc = r.get("premise_correction") or {}
+    if not pc or r.get("abstained") or r.get("error"):
+        return False
+    answer = (r.get("answer") or "").lower()
+    return any(t.lower() in answer for t in pc.get("required_terms_any", []))
+
+
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute the separately reported metrics for one config's records."""
     errors = [r for r in records if r.get("error")]
@@ -103,7 +117,10 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 
     # ── Abstention ──────────────────────────────────────────────
     false_abst = [r for r in answerable if r.get("abstained")]
-    false_ans = [r for r in unanswerable if not r.get("abstained")]
+    # A released answer to a false-premise item that corrects the premise is
+    # scored separately, not as a false answer (see `premise_corrected`).
+    false_ans = [r for r in unanswerable if not r.get("abstained") and not premise_corrected(r)]
+    false_premise = [r for r in unanswerable if r.get("premise_correction")]
     abstention = {
         "false_abstention_on_answerable": _rate(len(false_abst), len(answerable)),
         "false_abstention_by_outcome": dict(Counter(r.get("outcome", "?") for r in false_abst)),
@@ -111,6 +128,19 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "abstention_by_outcome_on_unanswerable": dict(
             Counter(r.get("outcome", "?") for r in unanswerable if r.get("abstained"))
         ),
+        "false_premise": {
+            "n": len(false_premise),
+            "abstained": sum(1 for r in false_premise if r.get("abstained")),
+            "premise_corrected": sum(1 for r in false_premise if premise_corrected(r)),
+            "unsupported_answer": sum(
+                1 for r in false_premise if not r.get("abstained") and not premise_corrected(r)
+            ),
+            "note": (
+                "premise_corrected = released answer (so it passed the citation policy) that "
+                "mentions one of the item's required correction terms. Keyword match, not a "
+                "judgement of the whole answer; review these by hand."
+            ),
+        },
     }
 
     # ── Citations: structural tag validity ──────────────────────
@@ -152,8 +182,12 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         elif r.get("expected_sources"):
             if not hit_at_k(r.get("ranked_sources") or [], r["expected_sources"], 5):
                 kinds.append("retrieval_miss_at_5")
+            elif not all_sources_at_k(r.get("ranked_sources") or [], r["expected_sources"], 5):
+                kinds.append("missing_required_source_at_5")
             if r.get("abstained"):
                 kinds.append(f"false_abstention:{r.get('outcome', '?')}")
+        elif premise_corrected(r):
+            kinds.append("premise_corrected (not a failure; check by hand)")
         elif not r.get("abstained"):
             kinds.append("false_answer")
         if not r.get("error") and r.get("outcome") in WITHHELD_OUTCOMES:
@@ -190,9 +224,20 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 def _retrieval_block(answerable: list[dict[str, Any]]) -> dict[str, Any]:
     depths = [len(r.get("ranked_sources") or []) for r in answerable]
     min_depth = min(depths) if depths else 0
+    multi = [r for r in answerable if len(r["expected_sources"]) > 1]
     return {
         "n": len(answerable),
         "hit_at_5": _mean([hit_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in answerable]),
+        "all_sources_at_5": _mean(
+            [all_sources_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in answerable]
+        ),
+        "multi_paper": {
+            "n": len(multi),
+            "hit_at_5": _mean([hit_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in multi]),
+            "all_sources_at_5": _mean(
+                [all_sources_at_k(r["ranked_sources"], r["expected_sources"], 5) for r in multi]
+            ),
+        },
         "mrr_at_10": _mean([mrr_at_k(r["ranked_sources"], r["expected_sources"], 10) for r in answerable]),
         "ndcg_at_10": _mean([ndcg_at_k(r["ranked_sources"], r["expected_sources"], 10) for r in answerable]),
         "min_ranking_depth": min_depth,
@@ -241,6 +286,8 @@ def summarize_retrieval(records: list[dict[str, Any]]) -> dict[str, Any]:
             kinds.append("pipeline_error")
         elif r.get("expected_sources") and not hit_at_k(r["ranked_sources"], r["expected_sources"], 5):
             kinds.append("retrieval_miss_at_5")
+        elif r.get("expected_sources") and not all_sources_at_k(r["ranked_sources"], r["expected_sources"], 5):
+            kinds.append("missing_required_source_at_5")
         tds = r.get("top_dense_score")
         if tds is not None and tds < LOW_TOP_DENSE_SCORE:
             kinds.append(f"low_top_dense_score:{tds:.3f}")
@@ -285,13 +332,16 @@ def render_retrieval_markdown(summaries: dict[str, dict[str, Any]], title: str, 
     lines += [
         "## Retrieval (answerable questions)",
         "",
-        "| Config | n | Hit@5 | MRR@10 | nDCG@10 | Retrieval+rerank p50 / p95 (ms) | Errors |",
-        "|---|---|---|---|---|---|---|",
+        "| Config | n | Hit@5 | All-sources@5 | Multi-paper n / Hit@5 / All-sources@5 | MRR@10 | nDCG@10 | Retrieval+rerank p50 / p95 (ms) | Errors |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for name, s in summaries.items():
         r, lt = s["retrieval"], s["latency"]
+        mp = r["multi_paper"]
         lines.append(
-            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['mrr_at_10'])} | {_fmt(r['ndcg_at_10'])} | "
+            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['all_sources_at_5'])} | "
+            f"{mp['n']} / {_fmt(mp['hit_at_5'])} / {_fmt(mp['all_sources_at_5'])} | "
+            f"{_fmt(r['mrr_at_10'])} | {_fmt(r['ndcg_at_10'])} | "
             f"{_fmt(lt['retrieval_plus_rerank_ms_p50'], 0)} / {_fmt(lt['retrieval_plus_rerank_ms_p95'], 0)} | "
             f"{s['counts']['n_errors']} |"
         )
@@ -345,27 +395,30 @@ def render_markdown(summaries: dict[str, dict[str, Any]], title: str, preamble: 
     lines += [
         "## Retrieval (answerable questions)",
         "",
-        "| Config | n | Hit@5 | MRR@10 | nDCG@10 | Note |",
-        "|---|---|---|---|---|---|",
+        "| Config | n | Hit@5 | All-sources@5 | Multi-paper n / All-sources@5 | MRR@10 | nDCG@10 | Note |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for name, s in summaries.items():
         r = s["retrieval"]
         lines.append(
-            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['mrr_at_10'])} | "
+            f"| `{name}` | {r['n']} | {_fmt(r['hit_at_5'])} | {_fmt(r['all_sources_at_5'])} | "
+            f"{r['multi_paper']['n']} / {_fmt(r['multi_paper']['all_sources_at_5'])} | {_fmt(r['mrr_at_10'])} | "
             f"{_fmt(r['ndcg_at_10'])} | {r['note']} |"
         )
     lines += [
         "",
         "## Abstention",
         "",
-        "| Config | False abstention (answerable) | False answer (unanswerable) | Errors |",
-        "|---|---|---|---|",
+        "| Config | False abstention (answerable) | False answer (unanswerable) | False-premise items: abstained / corrected / unsupported | Errors |",
+        "|---|---|---|---|---|",
     ]
     for name, s in summaries.items():
         a = s["abstention"]
+        fp = a["false_premise"]
+        fp_cell = f"{fp['abstained']} / {fp['premise_corrected']} / {fp['unsupported_answer']} (n={fp['n']})" if fp["n"] else "—"
         lines.append(
             f"| `{name}` | {_fmt_rate(a['false_abstention_on_answerable'])} | "
-            f"{_fmt_rate(a['false_answer_on_unanswerable'])} | {s['counts']['n_errors']} |"
+            f"{_fmt_rate(a['false_answer_on_unanswerable'])} | {fp_cell} | {s['counts']['n_errors']} |"
         )
     lines += [
         "",
@@ -412,6 +465,7 @@ __all__ = [
     "FACTUAL_GROUNDING_NOTE",
     "WITHHELD_OUTCOMES",
     "percentile",
+    "premise_corrected",
     "render_markdown",
     "render_retrieval_markdown",
     "round_floats",

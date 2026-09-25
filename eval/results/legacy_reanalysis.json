@@ -16,6 +16,12 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 0.95,
+      "all_sources_at_5": 0.95,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
       "mrr_at_10": 0.925,
       "ndcg_at_10": 0.931546,
       "min_ranking_depth": 5,
@@ -45,6 +51,13 @@
       },
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected": 0,
+        "unsupported_answer": 0,
+        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
       }
     },
     "citations": {
@@ -167,6 +180,12 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 1.0,
+      "all_sources_at_5": 1.0,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
       "mrr_at_10": 0.966667,
       "ndcg_at_10": 0.975,
       "min_ranking_depth": 5,
@@ -196,6 +215,13 @@
       },
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected": 0,
+        "unsupported_answer": 0,
+        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
       }
     },
     "citations": {
@@ -281,6 +307,12 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 0.95,
+      "all_sources_at_5": 0.95,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
       "mrr_at_10": 0.95,
       "ndcg_at_10": 0.95,
       "min_ranking_depth": 5,
@@ -310,6 +342,13 @@
       },
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected": 0,
+        "unsupported_answer": 0,
+        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
       }
     },
     "citations": {
@@ -432,6 +471,12 @@
     "retrieval": {
       "n": 20,
       "hit_at_5": 0.95,
+      "all_sources_at_5": 0.95,
+      "multi_paper": {
+        "n": 0,
+        "hit_at_5": null,
+        "all_sources_at_5": null
+      },
       "mrr_at_10": 0.95,
       "ndcg_at_10": 0.95,
       "min_ranking_depth": 5,
@@ -459,6 +504,13 @@
       },
       "abstention_by_outcome_on_unanswerable": {
         "legacy_abstained_substring": 5
+      },
+      "false_premise": {
+        "n": 0,
+        "abstained": 0,
+        "premise_corrected": 0,
+        "unsupported_answer": 0,
+        "note": "premise_corrected = released answer (so it passed the citation policy) that mentions one of the item's required correction terms. Keyword match, not a judgement of the whole answer; review these by hand."
       }
     },
     "citations": {

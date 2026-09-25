@@ -33,6 +33,7 @@ from typing import Any
 from eval.harness import render_markdown, round_floats, summarize
 from eval.retrieval_ablation import (
     CONFIG_BY_NAME,
+    QUESTION_KEYS,
     PreflightError,
     append_jsonl,
     git_state,
@@ -61,13 +62,8 @@ def generation_record(ranked: dict[str, Any], result: Any | None, gate: str | No
     """Merge a retrieval record with a generation result (or a gate abstention)."""
     from rag.guards.citation_checker import ABSTENTION_TEXT
 
-    rec = {
-        k: ranked[k]
-        for k in (
-            "id", "question", "split", "review_status", "source_kind", "expected_sources",
-            "ranked_sources", "top_rerank_score", "top_dense_score", "config",
-        )
-    }
+    rec = {k: ranked[k] for k in QUESTION_KEYS if k in ranked}
+    rec |= {k: ranked[k] for k in ("ranked_sources", "top_rerank_score", "top_dense_score", "config")}
     rec["context_chunks"] = [{"chunk_id": c.chunk_id, "text": c.text} for c in final]
     lat = dict(ranked["latency_ms"])
     if gate is not None:

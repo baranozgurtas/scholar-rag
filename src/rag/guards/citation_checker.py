@@ -25,14 +25,19 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-# Matches: [Paper: TITLE | p.NUM | §SECTION]
-# - Title can contain almost anything except `|` and `]`
-# - Page is one or more digits (allow optional dash range like 3-4)
-# - Section is one or more word chars / underscores / dashes
-_CITATION_RE = re.compile(
-    r"\[Paper:\s*(?P<title>[^|\]]+?)\s*\|\s*p\.(?P<page>[\d\-]+)\s*\|\s*§(?P<section>[\w\-]+)\s*\]",
-    re.IGNORECASE,
-)
+# Accepted citation formats (anything else is not a citation):
+#   [Paper: TITLE | p.NUM | §SECTION]   canonical, requested by the prompt
+#   (Paper: TITLE | p.NUM | §SECTION)   same fields in parentheses; models
+#                                       sometimes emit this (eval item D01)
+# - Title: anything except `|` and the closing delimiter
+# - Page: digits, optionally a dash range like 3-4
+# - Section: word chars / underscores / dashes
+# Both forms are normalized to the canonical bracket form before validation,
+# so they pass or fail exactly the same checks. Looser variants (commas
+# instead of pipes, missing page or section, "p. 3") are NOT accepted.
+_FIELDS = r"Paper:\s*(?P<title>[^|{close}]+?)\s*\|\s*p\.(?P<page>[\d\-]+)\s*\|\s*§(?P<section>[\w\-]+)\s*"
+_CITATION_RE = re.compile(r"\[" + _FIELDS.format(close=r"\]") + r"\]", re.IGNORECASE)
+_PAREN_CITATION_RE = re.compile(r"\(" + _FIELDS.format(close=r"\)") + r"\)", re.IGNORECASE)
 
 
 @dataclass
@@ -58,10 +63,18 @@ class CitationCheckResult:
 
 
 def extract_citation_tags(text: str) -> list[str]:
-    """Return every distinct citation tag (in order of first appearance) from text."""
+    """Return every distinct citation tag (in order of first appearance) from text.
+
+    Bracketed and parenthesized tags are both returned in canonical bracket
+    form, so a parenthesized tag is validated by the same rules.
+    """
     seen: list[str] = []
     seen_set: set[str] = set()
-    for m in _CITATION_RE.finditer(text):
+    matches = sorted(
+        [*_CITATION_RE.finditer(text), *_PAREN_CITATION_RE.finditer(text)],
+        key=lambda m: m.start(),
+    )
+    for m in matches:
         # Reconstruct in canonical form to make comparison robust to whitespace
         tag = (
             f"[Paper: {m.group('title').strip()} "

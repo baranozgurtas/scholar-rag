@@ -50,8 +50,9 @@ How to read this table:
 
 | Evaluation | Status |
 |---|---|
-| Retrieval-only ablation (A–D), current code and index | **NOT RUN** |
-| Generation eval with the enforced answer policy (config D) | **NOT RUN** |
+| Retrieval-only ablation (A–D) on the earlier 22-question draft | Run; INDICATIVE and saturated (these questions name their paper), so it cannot rank configs; no score is published |
+| Retrieval-only ablation on the current 35-question draft | **NOT RUN** |
+| Generation eval with the enforced answer policy (config D) | **Stopped at 2/22** (8 GB Mac, swap thrashing); no rates |
 | LLM-judged grounding (RAGAS) | **NOT RUN** |
 | Rerank abstention threshold (dev → held-out) | **NOT RUN**; gate disabled |
 
@@ -107,7 +108,7 @@ An off-topic query (*"What is the best ramen restaurant in Zurich?"*). The retri
 +----------------------------------------------------------------+
 ```
 
-Every chunk carries `paper_title`, `page` and `section`. The prompt asks for a `[Paper: TITLE | p.N | §SECTION]` tag after each claim. After generation, the policy in [`citation_checker.py`](src/rag/guards/citation_checker.py) parses the tags and compares them with the tags of the supplied passages. Exact matches pass, as do matches that differ only in section or use a whole-word shortened title of at least 6 characters on the same page. A withheld answer is replaced by
+Every chunk carries `paper_title`, `page` and `section`. The prompt asks for a `[Paper: TITLE | p.N | §SECTION]` tag after each claim. After generation, the policy in [`citation_checker.py`](src/rag/guards/citation_checker.py) parses the tags and compares them with the tags of the supplied passages. Exact matches pass, as do matches that differ only in section or use a whole-word shortened title of at least 6 characters on the same page. The same tag in parentheses, `(Paper: TITLE | p.N | §SECTION)`, is accepted under identical rules; looser forms are not ([accepted formats](docs/evaluation.md#answer-policy-what-the-citation-guard-enforces)). A withheld answer is replaced by
 
 > *"I could not find sufficient information in the indexed papers to answer this question."*
 
@@ -191,7 +192,7 @@ Full details: [docs/evaluation.md](docs/evaluation.md).
 - **Grounding** (`make eval-ragas RECORDS=…`): LLM-judged RAGAS on the saved answers. The judge is the same model family as the generator, and failed judgments are reported as missing, never scored.
 - Every run writes a `manifest.json`: commit SHA and dirty flag, model names and the generator's Ollama digest, settings, PDF hashes, index size, and question-file hash with review-status counts.
 
-**Question sets.** [`eval/questions.jsonl`](eval/questions.jsonl) is the legacy 25, now annotated per question with known label problems. [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl) has 22 dev/held-out questions: 15 answerable, whose evidence quotes CI checks against the PDFs, and 7 near-miss unanswerable, whose absent terms CI checks. They were **drafted by an LLM and are not human-reviewed**. The 15 old `[FILL IN]` templates were never evaluated and have been removed. The plan for a larger reviewed set is in [docs/evaluation.md](docs/evaluation.md#proposed-reviewed-held-out-set).
+**Question sets.** [`eval/questions.jsonl`](eval/questions.jsonl) is the legacy 25, now annotated per question with known label problems. [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl) has 35 dev/held-out questions: 25 answerable (4 multi-paper) and 10 unanswerable (one is a false-premise item, where a correct premise correction is scored separately). 13 of them are harder items that don't name their target paper and have close distractors. CI checks every evidence quote against the PDFs and every "absent" term against the scoped papers. All were **drafted by an LLM and are not human-reviewed**; the older 22 have already had their retrieval outcomes inspected, so the held-out split is not pristine for them. Review packet: [`eval/review/questions_v2_draft_review.md`](eval/review/questions_v2_draft_review.md). The plan for a larger reviewed set is in [docs/evaluation.md](docs/evaluation.md#proposed-reviewed-held-out-set).
 
 **Corpus label fixes.** Two PDFs were mislabelled. `ml-tips-domingos-2012.pdf` was actually Paullada et al. 2020, "Data and its (dis)contents", and `dropout-srivastava-2014.pdf` was actually Hinton et al. 2012. They are now `data-discontents-paullada-2020` and `dropout-hinton-2012`. Re-ingest with `--recreate` after pulling.
 
@@ -230,7 +231,7 @@ scholar-rag/
 ├── tests/                # deterministic suite (no models / services)
 ├── eval/
 │   ├── questions.jsonl           # legacy 25 (annotated)
-│   ├── questions_v2_draft.jsonl  # 22 unreviewed dev/held-out drafts
+│   ├── questions_v2_draft.jsonl  # 35 unreviewed dev/held-out drafts (13 hard)
 │   ├── questions.py              # schema, loader, PDF evidence checks
 │   ├── retrieval_ablation.py     # retrieval-only A–D, resumable
 │   ├── generation_eval.py        # one config, one question at a time, resumable

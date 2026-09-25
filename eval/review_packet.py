@@ -18,42 +18,15 @@ from pathlib import Path
 
 from eval.questions import EvalQuestion, file_sha256, load_questions, verify_question
 
-# Concerns found while drafting / auditing, for the human reviewer to rule on.
-REVIEW_CONCERNS: dict[str, list[str]] = {
-    "D02": [
-        "Evidence quote covers only the single-vector half of the comparison; the "
-        "late-interaction half is on the same page but split by a line-break hyphen "
-        "('multi-vector repre- sentations'), so it was not quoted verbatim.",
-    ],
-    "D05": ["Needs two papers; check both quotes support the stated contrast."],
-    "D10": [
-        "Ambiguous: NCF (ncf-he-2017) reports BPR's hit ratio on MovieLens as a "
-        "baseline. The question restricts to 'the original BPR paper', so it is "
-        "labelled unanswerable, but an answer citing NCF's BPR baseline is defensible. "
-        "Decide: keep as unanswerable, relabel as answerable from NCF, or rephrase.",
-    ],
-    "H06": [
-        "Evidence quote shows the first-moment correction only; the second-moment line "
-        "(same algorithm box, p.2) should also be checked against the reference answer.",
-    ],
-    "H07": [
-        "Passage (p.5) is about the ImageNet re-creation by Recht et al. 2019; the question "
-        "does not name ImageNet. Confirm it is unambiguous or add the dataset name.",
-    ],
-    "H12": [
-        "False-premise style: the paper evaluates Claude-1.3, not Claude 3. An answer "
-        "that corrects the premise is arguably correct but is scored as a false answer "
-        "by the current metric. Decide whether to keep, rephrase, or score separately.",
-    ],
-}
-
 
 def _md(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
 def question_block(q: EvalQuestion) -> str:
-    lines = [f"### {q.id} · {q.split} · {'answerable' if q.answerable else 'UNANSWERABLE'}", ""]
+    kind = "answerable" if q.answerable else ("FALSE PREMISE" if q.premise_correction else "UNANSWERABLE")
+    exposure = "outcomes already inspected" if q.inspected_before_freeze else "not yet inspected"
+    lines = [f"### {q.id} · {q.split} · {kind} · rev {q.revision} · {exposure}", ""]
     lines.append(f"**Question:** {q.question}")
     lines.append("")
     if q.answerable:
@@ -72,13 +45,23 @@ def question_block(q: EvalQuestion) -> str:
         note = q.notes.split("Not human-reviewed.")[-1].strip()
         if note:
             lines.append(f"**Distractor / note:** {note}")
+        if q.premise_correction:
+            pc = q.premise_correction
+            lines.append("")
+            lines.append(
+                f"**Premise correction (scored separately):** acceptable answer: {pc.get('acceptable_answer', '')} "
+                f"Counted as corrected if released and it mentions any of "
+                f"{', '.join(f'“{t}”' for t in pc.get('required_terms_any', []))}."
+            )
+            for ev in pc.get("evidence", []):
+                lines.append(f"- `{ev['source']}` p.{ev['page']}: “{ev['quote']}”")
     problems = verify_question(q)
-    concerns = REVIEW_CONCERNS.get(q.id, []) + q.label_issues
+    concerns = q.review_notes + q.label_issues
     lines.append("")
     lines.append(f"**Mechanical checks:** {'pass' if not problems else '; '.join(problems)}")
     if concerns:
         lines.append("")
-        lines.append("**Open concerns:**")
+        lines.append("**Notes for the reviewer:**")
         lines += [f"- {c}" for c in concerns]
     lines += [
         "",
@@ -105,14 +88,19 @@ def build_packet(path: Path) -> str:
         "JSONL for the questions you accept (and update "
         "`tests/test_eval_harness.py::TestQuestionFiles::test_no_question_claims_human_review`).",
         "",
-        "| id | split | answerable | expected source(s) | open concerns |",
-        "|---|---|---|---|---|",
+        "Held-out caveat: items marked *outcomes already inspected* (D01-D10 and "
+        "H01-H12, including revised ones) had their retrieval results looked at before this revision, so the "
+        "held-out split is not pristine for them. Only the new hard items (D11-D15, H13-H20) "
+        "have not been run or inspected.",
+        "",
+        "| id | split | type | rev | expected source(s) | inspected | kind |",
+        "|---|---|---|---|---|---|---|",
     ]
     for q in qs:
-        n_concerns = len(REVIEW_CONCERNS.get(q.id, [])) + len(q.label_issues)
+        kind = "answerable" if q.answerable else ("false premise" if q.premise_correction else "unanswerable")
         header.append(
-            f"| {q.id} | {q.split} | {'yes' if q.answerable else 'no'} | "
-            f"{', '.join(q.expected_sources) or '—'} | {n_concerns or ''} |"
+            f"| {q.id} | {q.split} | {q.question_type} | {q.revision} | "
+            f"{', '.join(q.expected_sources) or '—'} | {'yes' if q.inspected_before_freeze else 'no'} | {kind} |"
         )
     header.append("")
     return "\n".join(header) + "\n" + "\n".join(question_block(q) for q in qs)

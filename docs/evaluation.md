@@ -8,8 +8,9 @@ support, and the plan for a larger reviewed held-out set.
 | Evaluation | Status |
 |---|---|
 | Legacy 25-question results (`eval/results/ablation_*.json`, Colab T4, generator not recorded) | Committed; re-analysed deterministically in `eval/results/legacy_reanalysis.md` |
-| Retrieval-only ablation with the current code and index | **NOT RUN** |
-| Generation eval (answer policy, false abstention / false answer, tag validity) with the current code | **NOT RUN** |
+| Retrieval-only ablation on the 22-item rev-1 draft (`eval/results/runs/retrieval_v2draft_20260925T213410Z_ddadab57/`) | Run; **INDICATIVE** (unreviewed questions) and saturated (every config perfect on Hit@5 / MRR), so it cannot rank configs. Not a publishable score. |
+| Retrieval-only ablation on the current 35-item draft (hard items, revised labels) | **NOT RUN** |
+| Generation eval, config D | **Stopped at 2/22** on an 8 GB Mac (swap thrashing); no rates computed. See the run's `STATUS.md`. |
 | RAGAS (LLM-judged grounding) | **NOT RUN** |
 | Rerank threshold selection on dev / held-out | **NOT RUN** (gate stays disabled) |
 
@@ -71,9 +72,11 @@ package versions) and the raw per-question JSONL files.
 
 | Metric | Population | Definition |
 |---|---|---|
-| Hit@5, MRR@10, nDCG@10 | answerable | Paper-level: a ranked chunk is relevant if its PDF is in `expected_sources`; each paper counts once (nDCG). Ranking is the top-10 after reranking (or fusion), not just the 5 chunks sent to the LLM. |
+| Hit@5, MRR@10, nDCG@10 | answerable | Paper-level: a ranked chunk is relevant if its PDF is in `expected_sources`; each paper counts once (nDCG). Ranking is the top-10 after reranking (or fusion), not just the 5 chunks sent to the LLM. Hit@5 is satisfied by **any one** expected paper. |
+| All-sources@5 | answerable; also reported for the multi-paper subset | 1 if **every** expected paper is in the top-5 (the chunks the generator sees), else 0. Equals Hit@5 for single-paper questions. For multi-paper comparisons it exposes partial retrieval that Hit@5 hides (e.g. D05: BPR in top-5, NCF only at rank 9 in config D). Failures are listed as `missing_required_source_at_5`. |
 | False abstention | answerable | Share answered with the abstention text, broken down by `outcome` (model abstained, withheld by guard, rerank gate). |
-| False answer | unanswerable | Share where an answer was released. |
+| False answer | unanswerable | Share where an answer was released, **excluding** premise corrections (next row). |
+| False-premise breakdown | unanswerable items with `premise_correction` | Counts of abstained / `premise_corrected` / unsupported answer. `premise_corrected` = released answer (so it passed the citation policy) that mentions one of the item's `required_terms_any`; a keyword match, so these answers should be checked by hand. Unsupported answers count as false answers. |
 | Citation tag validity | all generated tags | Share of tags whose (title, page) was among the supplied passages. **Structural only.** |
 | Factual grounding | — | Not measured by the harness. `eval.ragas_eval` gives an LLM-judged estimate (same model family as the generator); human review is the reference. |
 | Latency | all non-error | Retrieval-only runs: p50 / p95 of retrieval + rerank. Generation runs: retrieval + rerank + generation, measured in separate processes and summed. |
@@ -123,7 +126,7 @@ was not saved, so this cannot be checked.
 1. generation raised → withheld (`generation_error`)
 2. output is exactly the abstention sentence → `model_abstained`
 3. abstention sentence **and** other content → withheld (`mixed_abstention`)
-4. no parseable citation tag → withheld (`uncited_answer`)
+4. no parseable citation tag (formats below) → withheld (`uncited_answer`)
 5. any tag not matching a supplied passage → withheld (`invalid_citation`)
 6. otherwise → released (`answered`)
 
@@ -131,6 +134,19 @@ was not saved, so this cannot be checked.
 kept in the response (`debug=true`) and in eval records. A released answer
 has at least one tag and no out-of-context tags. That does **not** establish
 that every claim is cited, or that a cited passage supports its claim.
+
+Accepted citation formats (both parse to the same fields and are normalized
+to the bracket form before validation, so they pass or fail identically):
+
+| Format | Accepted |
+|---|---|
+| `[Paper: TITLE \| p.N \| §SECTION]` | yes (canonical; what the prompt asks for) |
+| `(Paper: TITLE \| p.N \| §SECTION)` | yes (added after eval item D01, where qwen2.5:7b wrote a correct, correctly-sourced citation in parentheses and the answer was withheld as uncited) |
+| `(Paper: TITLE, p.2)`, `(TITLE \| p.2 \| §S)`, `(see page 2)` | no; the answer counts as uncited |
+
+Validation is unchanged for both: exact tag, or same title and page with a
+different section, or a whole-word shortened title of at least 6 characters
+on the same page. One-letter or short "titles" do not validate.
 
 The optional pre-generation gate (`RETRIEVAL_RERANK_SCORE_THRESHOLD`) acts on
 the top-1 reranker score only and is off by default (0.0). Because it acts
@@ -167,21 +183,45 @@ The 15 `[FILL IN]` manual templates were never completed and were never part
 of the 25 evaluated questions (the old loader skipped them). They have been
 removed from this file; the loader now rejects any `[FILL IN]` record.
 
-### `eval/questions_v2_draft.jsonl` — proposed dev / held-out draft (22)
+### `eval/questions_v2_draft.jsonl` — proposed dev / held-out draft (35)
 
-- 15 answerable questions drafted from the former template hints (the
-  "ML Tips bias-variance" hint was replaced because that paper is not in the
-  corpus; the cross-cluster "conformal prediction vs RAG abstention" hint was
-  dropped because no passage answers it). Each carries `evidence` quotes
-  that CI checks verbatim against the stated PDF page.
-- 7 near-miss unanswerable questions about indexed papers asking for a fact
-  those papers do not contain (e.g. BPR hit ratio on MovieLens, which NCF
-  reports but BPR does not). Each lists `absent_terms` that CI checks never
-  occur in the scoped PDFs.
-- Split fixed before any run: dev 7 + 3, held-out 8 + 4.
-- **Drafted by an LLM (Claude Code), not human-reviewed.** Machine checks
-  confirm quotes exist and terms are absent; they do not confirm the
-  question is well-posed or the reference answer is complete.
+All items are **drafted by an LLM (Claude Code) and unreviewed**. Machine
+checks (in CI) confirm that every evidence quote occurs verbatim on the stated
+PDF page and that every `absent_terms` entry never occurs in the scoped
+papers; they do not show that a question is well-posed or a reference
+complete. The review packet for a human is
+[`eval/review/questions_v2_draft_review.md`](../eval/review/questions_v2_draft_review.md)
+(`python -m eval.review_packet eval/questions_v2_draft.jsonl --out ...`).
+
+| Block | Items | Notes |
+|---|---|---|
+| Original draft (rev 1 or 2) | D01–D10, H01–H12 | Name their paper, so retrieval saturates on them. `inspected_before_freeze: true`: their retrieval outcomes were inspected, so the held-out ones are **not pristine**. |
+| Hard, answerable, paper not named | D12, D13, H15–H18 | Each has a close distractor paper recorded in `review_notes`. |
+| Hard, multi-paper | D11, H13, H14 (plus the older D05) | Need evidence from two papers; evidence covers both. Scored with All-sources@5. |
+| Hard, near-miss unanswerable | D14, D15, H19, H20 | Target paper not named; the fact is absent from it, often present in a distractor. |
+
+Split: dev 11 answerable + 4 unanswerable, held-out 14 + 6, fixed in the
+file. Only the 13 hard items (D11–D15, H13–H20) have never been run or
+inspected.
+
+Revisions after the first review packet (each bumps `revision` and adds a
+`review_notes` entry):
+
+- **D02**: added evidence for the late-interaction half of the comparison.
+- **D05**: evidence now covers BPR-Opt, the maximum-posterior estimator and
+  item pairs (BPR) and log loss / binary classification (NCF).
+- **D10**: was "BPR hit ratio on MovieLens in the original BPR paper",
+  labelled unanswerable. NCF reports BPR as a MovieLens baseline, so the
+  label was contestable; it is now an answerable comparison grounded in
+  NCF's text (average 4.9% relative improvement of NeuMF over BPR).
+- **H06**: added the second-moment correction line.
+- **H07**: names ImageNet; evidence covers each clause of the reference.
+- **H12**: false-premise item with `premise_correction`; a correction is
+  scored separately from an unsupported answer.
+
+Rejected while drafting: a "ColBERTv2 warmup schedule" unanswerable item
+(the paper reports a 20,000-step warmup) and a "BGE-M3 latency" item (the
+paper discusses latency and throughput).
 
 ## Proposed reviewed held-out set
 
