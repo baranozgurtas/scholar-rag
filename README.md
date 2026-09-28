@@ -28,13 +28,18 @@ Captured from the running web UI on the current code and the 1,278-chunk index, 
 
 ![Answer citing two papers, with both papers in the sources panel](docs/images/demo-cross-paper.png)
 
-**Citation pill → source chunk.** The same answer after clicking a BPR pill: the selection moves from card 1 to card 5 (BPR, p.2, §related_work), which shows the chunk text and its dense (0.59), sparse (0.28) and rerank (0.163) scores.
+**Citation pill → source chunk.** A crop of the same answer after clicking a BPR pill (5). Source card 5 (BPR, p.2, §related_work) is now the selected card, showing its chunk text and its dense (0.59), sparse (0.28) and rerank (0.163) scores; in the screenshot above, card 1 was selected.
 
-![Clicking citation pill 5 selects source card 5 with its text and scores](docs/images/demo-citation-source.png)
+![After clicking a BPR citation pill, source card 5 is selected and shows its text and scores](docs/images/demo-citation-source.png)
 
 ---
 
 ## How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+  <img alt="Pipeline: 15 PDFs are chunked and embedded with BGE-M3 into Qdrant (1,278 chunks). A question goes through hybrid dense and sparse search with RRF, cross-encoder reranking to the top 5, and Qwen2.5:7b; the citation check releases the answer or withholds it." src="docs/images/architecture-light.svg" width="506">
+</picture>
 
 1. **Ingestion.** The 15 PDFs are split into section-aware chunks, figure debris is dropped, and BGE-M3 embeds each chunk as a dense and a sparse vector in one pass. Qdrant stores 1,278 chunks, each with paper title, page and section.
 2. **Retrieval.** Dense and sparse search each return 30 candidates. Reciprocal Rank Fusion (k=60) keeps 20, and the bge-reranker-v2-m3 cross-encoder picks the top 5.
