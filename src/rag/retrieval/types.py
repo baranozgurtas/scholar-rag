@@ -24,6 +24,14 @@ class ModelOutputError(ValueError):
     """
 
 
+class EmptySparseQuery(Exception):
+    """The query's sparse encoding is valid (finite) but has no positive weights.
+
+    Not a failure: the lexical leg has nothing to search with. The hybrid
+    retriever answers from the dense leg and records `dense_only` mode.
+    """
+
+
 class RetrievalFailure(RuntimeError):
     """A retrieval stage (dense, sparse or rerank) produced no usable result.
 
@@ -99,4 +107,4 @@ class RetrievedChunk:
         )
 
 
-__all__ = ["ModelOutputError", "RetrievalFailure", "RetrievedChunk"]
+__all__ = ["EmptySparseQuery", "ModelOutputError", "RetrievalFailure", "RetrievedChunk"]

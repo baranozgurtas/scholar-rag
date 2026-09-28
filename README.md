@@ -24,7 +24,7 @@ Captured from the running web UI on the current code and the 1,278-chunk index, 
 
 ![Released single-paper answer with citation pills and sources panel](docs/images/demo-answer.png)
 
-**Cross-paper answer.** Question H14. The answer cites both *Neural Collaborative Filtering* (pills 1, 2 and 3) and *BPR: Bayesian Personalized Ranking from Implicit Feedback* (pill 5), and all 4 citation tags match retrieved passages.
+**Answer citing two papers.** Question H14. The answer cites *Neural Collaborative Filtering* (pills 1, 2 and 3) and *BPR: Bayesian Personalized Ranking from Implicit Feedback* (pill 5), and the badge reports 4/4 citation tags matching retrieved passages.
 
 ![Answer citing two papers, with both papers in the sources panel](docs/images/demo-cross-paper.png)
 

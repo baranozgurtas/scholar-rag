@@ -38,6 +38,7 @@ def mock_app_state() -> AppState:
     response_obj.config_summary = {"use_reranker": True}
     response_obj.outcome = "answered"
     response_obj.outcome_detail = ""
+    response_obj.retrieval_mode = "hybrid"
     response_obj.top_rerank_score = 0.9
     response_obj.raw_answer = "mocked answer [Paper: BGE-M3 | p.1 | §abstract]"
     response_obj.to_dict.return_value = {

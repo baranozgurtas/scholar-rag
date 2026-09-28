@@ -97,6 +97,10 @@ class QueryResponse(BaseModel):
         default=None,
         description="For retrieval_failed: the failed stage and reason, e.g. 'dense: ...'.",
     )
+    retrieval_mode: str = Field(
+        default="hybrid",
+        description="hybrid | dense_only (the query's sparse encoding had no positive weights).",
+    )
     top_rerank_score: float | None = None
     raw_answer: str | None = Field(
         default=None, description="Unfiltered generator output (only when debug=true)."

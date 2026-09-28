@@ -90,6 +90,7 @@ async def query(req: QueryRequest, state: AppState = Depends(get_state)) -> Quer
             config_summary=response.config_summary,
             outcome=response.outcome,
             outcome_detail=response.outcome_detail or None,
+            retrieval_mode=response.retrieval_mode,
             top_rerank_score=response.top_rerank_score,
             raw_answer=response.raw_answer if req.debug else None,
         )

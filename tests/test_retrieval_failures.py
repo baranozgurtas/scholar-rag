@@ -15,6 +15,7 @@ import types
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -23,8 +24,19 @@ from rag.config import EmbeddingSettings, RetrievalSettings
 from rag.embeddings.output_checks import check_dense, to_sparse
 from rag.generation.rag_chain import RAGChain
 from rag.guards.citation_checker import ABSTENTION_TEXT, AnswerOutcome
-from rag.retrieval.hybrid_retriever import HybridRetrievalConfig, HybridRetriever
-from rag.retrieval.types import ModelOutputError, RetrievalFailure, RetrievedChunk
+from rag.retrieval.hybrid_retriever import (
+    RETRIEVAL_MODE_DENSE_ONLY,
+    RETRIEVAL_MODE_HYBRID,
+    HybridRetrievalConfig,
+    HybridRetriever,
+)
+from rag.retrieval.sparse_retriever import SparseRetriever
+from rag.retrieval.types import (
+    EmptySparseQuery,
+    ModelOutputError,
+    RetrievalFailure,
+    RetrievedChunk,
+)
 
 NAN = float("nan")
 
@@ -77,6 +89,25 @@ class TestHybridLegFailures:
             _hybrid(dense, sparse).retrieve("q")
         assert ei.value.stage == failed
 
+    def test_empty_sparse_encoding_is_recorded_dense_only(self) -> None:
+        # Regression: a valid but empty sparse encoding (e.g. a stopword-only
+        # query) must not be treated as a broken leg.
+        hybrid = _hybrid([_mk("A", 0.9), _mk("B", 0.8)], EmptySparseQuery("no weights"))
+        out, mode = hybrid.retrieve_with_mode("q")
+        assert mode == RETRIEVAL_MODE_DENSE_ONLY
+        assert [c.chunk_id for c in out] == ["A", "B"]
+        assert hybrid.retrieve("q") == out  # list API unchanged
+
+    def test_healthy_retrieval_reports_hybrid_mode(self) -> None:
+        _, mode = _hybrid([_mk("A", 0.9)], [_mk("A", 5.0)]).retrieve_with_mode("q")
+        assert mode == RETRIEVAL_MODE_HYBRID
+
+    def test_nan_sparse_weights_still_fail_closed(self) -> None:
+        # Non-finite weights raise in the embedder, not EmptySparseQuery.
+        with pytest.raises(RetrievalFailure) as ei:
+            _hybrid([_mk("A", 0.9)], ModelOutputError("sparse lexical weights contain NaN/inf")).retrieve("q")
+        assert ei.value.stage == "sparse"
+
     def test_both_empty_is_not_a_failure(self) -> None:
         # An empty collection is "no context", not a broken leg.
         assert _hybrid([], []).retrieve("q") == []
@@ -84,6 +115,24 @@ class TestHybridLegFailures:
     def test_disabled_leg_is_not_checked(self) -> None:
         out = _hybrid([_mk("A", 0.9)], [], use_sparse=False).retrieve("q")
         assert [c.chunk_id for c in out] == ["A"]
+
+
+class TestSparseRetrieverSignals:
+    def _retriever(self, weights: list[dict[int, float]] | Exception) -> SparseRetriever:
+        embedder = MagicMock()
+        if isinstance(weights, Exception):
+            embedder.embed_dense_and_sparse.side_effect = weights
+        else:
+            embedder.embed_dense_and_sparse.return_value = (np.ones((1, 4)), weights)
+        return SparseRetriever(store=MagicMock(), embedder=embedder)
+
+    def test_empty_encoding_raises_empty_sparse_query(self) -> None:
+        with pytest.raises(EmptySparseQuery):
+            self._retriever([{}]).retrieve("the of and")
+
+    def test_embedder_error_propagates(self) -> None:
+        with pytest.raises(ModelOutputError):
+            self._retriever(ModelOutputError("sparse lexical weights contain NaN/inf")).retrieve("q")
 
 
 class TestOutputChecks:
@@ -141,6 +190,27 @@ def _chain(hybrid: Any, reranker: Any) -> tuple[RAGChain, CountingLLM]:
         llm=RunnableLambda(llm.invoke),
     )
     return chain, llm
+
+
+class DenseOnlyHybrid:
+    def retrieve_with_mode(self, question: str, top_k: int = 20) -> tuple[list[RetrievedChunk], str]:
+        return [_mk(f"c{i}", 1.0 / (i + 1)) for i in range(8)], RETRIEVAL_MODE_DENSE_ONLY
+
+
+class TestChainDenseOnly:
+    def test_dense_only_answer_is_released_and_recorded(self) -> None:
+        from langchain_core.runnables import RunnableLambda
+
+        chain = RAGChain(
+            hybrid=DenseOnlyHybrid(),  # type: ignore[arg-type]
+            reranker=None,
+            retrieval_settings=RetrievalSettings(),
+            llm=RunnableLambda(lambda _: "Answer [Paper: Paper | p.1 | §abstract]."),
+        )
+        r = chain.answer("q")
+        assert r.outcome == AnswerOutcome.ANSWERED
+        assert r.retrieval_mode == RETRIEVAL_MODE_DENSE_ONLY
+        assert r.to_dict()["retrieval_mode"] == "dense_only"
 
 
 class TestChainRetrievalFailure:

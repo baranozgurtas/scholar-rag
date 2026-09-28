@@ -77,6 +77,8 @@ class RAGResponse:
     ranked_sources: list[str] = field(default_factory=list)
     # Which stage failed and why, for `retrieval_failed` ("" otherwise).
     outcome_detail: str = ""
+    # "hybrid", or "dense_only" when the query's sparse encoding was empty.
+    retrieval_mode: str = "hybrid"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -194,7 +196,13 @@ class RAGChain:
         t_retr = time.perf_counter()
         hybrid_top_k = self.retrieval_settings.hybrid_top_k
         try:
-            candidates = self.hybrid.retrieve(question, top_k=hybrid_top_k)
+            if hasattr(self.hybrid, "retrieve_with_mode"):
+                candidates, retrieval_mode = self.hybrid.retrieve_with_mode(
+                    question, top_k=hybrid_top_k
+                )
+            else:  # retrievers without mode reporting (tests, ablation stubs)
+                candidates = self.hybrid.retrieve(question, top_k=hybrid_top_k)
+                retrieval_mode = "hybrid"
         except RetrievalFailure as e:
             return self._build_failure_response(question, timings, t0, e)
         timings["retrieval_ms"] = (time.perf_counter() - t_retr) * 1000
@@ -222,9 +230,11 @@ class RAGChain:
             final, top_rerank_score, self.retrieval_settings.rerank_score_threshold
         )
         if gate is not None:
-            return self._build_abstention_response(
+            response = self._build_abstention_response(
                 question, timings, t0, final, gate, top_rerank_score, ranked_sources
             )
+            response.retrieval_mode = retrieval_mode
+            return response
 
         # 4) Generate + enforce the answer policy
         g = self.generator.generate(question, final)
@@ -245,6 +255,7 @@ class RAGChain:
             raw_answer=g.raw_answer,
             top_rerank_score=top_rerank_score,
             ranked_sources=ranked_sources,
+            retrieval_mode=retrieval_mode,
         )
 
     # ─── Internal helpers ──────────────────────────────────────────

@@ -169,6 +169,7 @@ function renderAnswer(data, elapsed) {
       ${html}
       <div class="answer-footer">
         ${validBadge}
+        ${data.retrieval_mode === "dense_only" ? `<span title="The query's sparse encoding had no positive weights.">dense only</span>` : ""}
         <span>retrieval ${Math.round(retrieval)}ms</span>
         <span>rerank ${Math.round(rerank)}ms</span>
         <span>generation ${(generation/1000).toFixed(1)}s</span>
@@ -192,8 +193,11 @@ function matchChunkIndex(retrieved, title, page, section) {
   const tp = retrieved.map(c => [norm(c.paper_title ?? c.metadata?.paper_title ?? ""), String(c.page ?? c.metadata?.page)]);
   let i = retrieved.findIndex((c, k) => tp[k][0] === t && tp[k][1] === p && norm(c.section ?? c.metadata?.section ?? "") === s);
   if (i < 0) i = tp.findIndex(([ct, cp]) => ct === t && cp === p);
-  if (i < 0 && t.length >= 6) {
-    const re = new RegExp(`(?<!\\w)${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\w)`);
+  // Python's `\w` on str is Unicode letters, numbers and "_"; JS `\w` is
+  // ASCII-only, so spell the class out. Length is in code points, like len().
+  if (i < 0 && [...t].length >= 6) {
+    const W = "[\\p{L}\\p{N}_]";
+    const re = new RegExp(`(?<!${W})${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!${W})`, "u");
     i = tp.findIndex(([ct, cp]) => cp === p && re.test(ct));
   }
   return i;

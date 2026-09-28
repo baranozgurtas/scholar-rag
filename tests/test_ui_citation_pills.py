@@ -54,6 +54,26 @@ process.stdout.write(JSON.stringify(out));
 """
 
 
+_MATCH_HARNESS = r"""
+const vm = require("vm");
+const fs = require("fs");
+const input = JSON.parse(fs.readFileSync(0, "utf8"));
+const el = () => ({ style: {}, classList: { add() {}, remove() {}, contains: () => true }, textContent: "", innerHTML: "" });
+const ctx = {
+  document: { getElementById: () => el(), querySelectorAll: () => [], querySelector: () => null },
+  localStorage: { getItem: () => null, setItem() {} },
+  fetch: () => Promise.reject(new Error("offline")),
+  setInterval: () => 0,
+  console,
+};
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(input.appJs, "utf8"), ctx);
+const out = input.cases.map(([allowed, cited]) =>
+  ctx.matchChunkIndex([{ paper_title: allowed, page: 3, section: "methods" }], cited, "3", "other"));
+process.stdout.write(JSON.stringify(out));
+"""
+
+
 def _chunk(title: str, page: int, section: str) -> dict:
     return {"paper_title": title, "page": page, "section": section}
 
@@ -102,3 +122,39 @@ def test_shortened_title_resolves_on_same_page_only() -> None:
 def test_unmatched_tag_gets_no_click_target() -> None:
     answer = "Short spoof [Paper: BPR | p.2 | §related_work] and wrong page [Paper: Neural Collaborative Filtering | p.9 | §x]."
     assert _click_pills(answer) == [{"label": "?", "active": None}, {"label": "?", "active": None}]
+
+
+# (allowed title, cited title). Non-ASCII letters next to the cited span decide
+# the whole-word rule; the UI must agree with rag/guards/citation_checker.py.
+PARITY_CASES = [
+    ("Über Modelle für Straßen", "Modelle für"),  # whole words
+    ("Über Modelle für Straßen", "ber Modelle"),  # preceded by the letter Ü
+    ("Straßenbahn Netze Modelle", "Straßen"),  # followed by the letter b
+    ("数据 Deep Learning 模型", "Deep Learning"),  # CJK words separated by spaces
+    ("模型Deep Learning", "Deep Learning"),  # preceded by a CJK letter
+    ("Café Society Models", "é Society"),  # preceded by the letter f
+    ("Eﬀects using Random Forests", "Effects using"),  # ligature after NFKC
+    ("Deep Learning Models", "Deep"),  # below the 6-character floor
+]
+
+
+def test_short_title_word_boundaries_match_python_checker() -> None:
+    from rag.guards.citation_checker import validate_citations_against_context
+
+    python = [
+        validate_citations_against_context(
+            [f"[Paper: {cited} | p.3 | §other]"], [f"[Paper: {allowed} | p.3 | §methods]"]
+        ).all_valid
+        for allowed, cited in PARITY_CASES
+    ]
+    proc = subprocess.run(
+        ["node", "-e", _MATCH_HARNESS],
+        input=json.dumps({"appJs": str(APP_JS), "cases": PARITY_CASES}),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    ui = [idx >= 0 for idx in json.loads(proc.stdout)]
+    assert ui == python
+    assert python == [True, False, False, True, False, False, True, False]

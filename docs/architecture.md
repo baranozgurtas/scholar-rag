@@ -89,7 +89,9 @@ parentheses are accepted under identical rules. After generation,
 Before generation, a retrieval stage (dense, sparse or rerank) that raises,
 returns non-finite scores, or returns nothing while the other leg returns hits
 ends the request with `retrieval_failed` and an `outcome_detail` naming the
-stage; no chunks are shown and the LLM is not called.
+stage; no chunks are shown and the LLM is not called. One exception: when the
+query's sparse encoding is valid but has no positive weights, retrieval runs
+on the dense leg alone and the response records `retrieval_mode: dense_only`.
 
 The optional pre-generation gate (`RETRIEVAL_RERANK_SCORE_THRESHOLD`, off by
 default) refuses with `low_rerank_score` without calling the LLM. With
