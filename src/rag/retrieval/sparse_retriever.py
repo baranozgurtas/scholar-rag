@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from rag.logging_config import get_logger
-from rag.retrieval.types import RetrievedChunk
+from rag.retrieval.types import EmptySparseQuery, RetrievedChunk
 
 if TYPE_CHECKING:  # avoid importing torch/FlagEmbedding at module import
     from rag.embeddings.bge_embedder import BGEEmbedder
@@ -31,14 +31,18 @@ class SparseRetriever:
         self.embedder = embedder
 
     def retrieve(self, query: str, top_k: int = 30) -> list[RetrievedChunk]:
-        """Return top-k sparse hits."""
+        """Return top-k sparse hits.
+
+        Raises:
+            EmptySparseQuery: the encoding is finite but has no positive
+                weights (non-finite weights raise ModelOutputError upstream).
+        """
         if not query or not query.strip():
             return []
 
         _, sparse_list = self.embedder.embed_dense_and_sparse([query], is_query=True)
         if not sparse_list or not sparse_list[0]:
-            logger.debug("sparse_empty_query", query=query[:80])
-            return []
+            raise EmptySparseQuery("sparse query encoding has no positive weights")
         query_sparse = sparse_list[0]
 
         hits = self.store.search_sparse(query_sparse=query_sparse, top_k=top_k)

@@ -69,6 +69,34 @@ sequenceDiagram
     A-->>U: JSON response
 ```
 
+### Citation release policy
+
+Every chunk carries `paper_title`, `page` and `section`. The prompt asks for a
+`[Paper: TITLE | p.N | §SECTION]` tag after each claim; the same fields in
+parentheses are accepted under identical rules. After generation,
+[`citation_checker.py`](../src/rag/guards/citation_checker.py) decides the
+`outcome` returned by the API:
+
+| Model output | Outcome | Released? |
+|---|---|---|
+| Only the abstention sentence | `model_abstained` | No (refusal) |
+| Abstention sentence plus other text | `mixed_abstention` | No (withheld) |
+| Answer with no citation tag | `uncited_answer` | No (withheld) |
+| Any tag that matches no supplied passage | `invalid_citation` | No (withheld) |
+| Generation failed | `generation_error` | No (withheld) |
+| ≥1 tag, every tag matches a supplied passage | `answered` | Yes |
+
+Before generation, a retrieval stage (dense, sparse or rerank) that raises,
+returns non-finite scores, or returns nothing while the other leg returns hits
+ends the request with `retrieval_failed` and an `outcome_detail` naming the
+stage; no chunks are shown and the LLM is not called. One exception: when the
+query's sparse encoding is valid but has no positive weights, retrieval runs
+on the dense leg alone and the response records `retrieval_mode: dense_only`.
+
+The optional pre-generation gate (`RETRIEVAL_RERANK_SCORE_THRESHOLD`, off by
+default) refuses with `low_rerank_score` without calling the LLM. With
+`debug=true` the response also includes the raw model output.
+
 ## Ingestion lifecycle
 
 ```mermaid

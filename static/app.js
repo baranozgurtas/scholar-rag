@@ -125,19 +125,20 @@ async function sendQuery() {
 
 function renderAnswer(data, elapsed) {
   const answerText = data.answer || "(empty)";
-  const citations = data.citations || [];
   const checkData = data.citation_check || { all_valid: false, n_extracted: 0, n_valid: 0 };
 
   const isAbstain = data.abstained === true;
   // If the system abstained, suppress citation pills inside the answer
   const html = isAbstain
     ? `<p>${escapeHtml(answerText).replace(/\[Paper:[^\]]+\]/g, "").trim()}</p>`
-    : formatAnswerWithCitations(answerText, citations);
+    : formatAnswerWithCitations(answerText, data.retrieved_chunks || data.retrieved || []);
 
   const latency = data.latency_ms?.total_ms ?? data.latency_ms?.total ?? elapsed * 1000;
   document.getElementById("head-sources").textContent = `${(data.retrieved_chunks||data.retrieved||[]).length} sources`;
   document.getElementById("head-latency").textContent = `${(latency/1000).toFixed(1)}s`;
-  document.getElementById("head-cites").textContent = isAbstain ? "abstained" : `${checkData.n_extracted} cites`;
+  const isFailure = data.outcome === "retrieval_failed";
+  document.getElementById("head-cites").textContent =
+    isFailure ? "failed" : isAbstain ? "abstained" : `${checkData.n_extracted} cites`;
 
   // Why the system did not answer. Tag checks are structural: a matching tag
   // means the cited page was in the supplied context, not that it supports the claim.
@@ -151,7 +152,9 @@ function renderAnswer(data, elapsed) {
     low_rerank_score: "abstained: top rerank score below threshold",
   };
   const abstainLabel = ABSTAIN_REASONS[data.outcome] || "abstained";
-  const validBadge = isAbstain
+  const validBadge = isFailure
+    ? `<span class="badge-bad"><i class="ti ti-alert-triangle"></i>failed: retrieval stage error (${escapeHtml(data.outcome_detail || "unknown")})</span>`
+    : isAbstain
     ? `<span class="badge-ok"><i class="ti ti-shield-check"></i>${abstainLabel}</span>`
     : (checkData.all_valid
         ? `<span class="badge-ok" title="Tags match supplied passages; this does not verify that the passages support each claim."><i class="ti ti-circle-check"></i>${checkData.n_valid}/${checkData.n_extracted} citation tags match retrieved passages</span>`
@@ -166,6 +169,7 @@ function renderAnswer(data, elapsed) {
       ${html}
       <div class="answer-footer">
         ${validBadge}
+        ${data.retrieval_mode === "dense_only" ? `<span title="The query's sparse encoding had no positive weights.">dense only</span>` : ""}
         <span>retrieval ${Math.round(retrieval)}ms</span>
         <span>rerank ${Math.round(rerank)}ms</span>
         <span>generation ${(generation/1000).toFixed(1)}s</span>
@@ -179,21 +183,38 @@ function renderAnswer(data, elapsed) {
   document.getElementById("sources-badge").style.display = "block";
 }
 
-function formatAnswerWithCitations(text, allowedCitations) {
-  let citeMap = new Map();
-  allowedCitations.forEach((c, i) => citeMap.set(c, i + 1));
+// Index of the retrieved chunk a citation tag refers to, or -1. Mirrors the
+// matching rules in rag/guards/citation_checker.py: exact tag, same title and
+// page, or a whole-word shortened title (>= 6 chars) on the same page. Both
+// sides are NFKC-normalized there and here, so "Eﬀects" matches "Effects".
+function matchChunkIndex(retrieved, title, page, section) {
+  const norm = s => String(s).normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
+  const t = norm(title), p = String(page).trim(), s = norm(section);
+  const tp = retrieved.map(c => [norm(c.paper_title ?? c.metadata?.paper_title ?? ""), String(c.page ?? c.metadata?.page)]);
+  let i = retrieved.findIndex((c, k) => tp[k][0] === t && tp[k][1] === p && norm(c.section ?? c.metadata?.section ?? "") === s);
+  if (i < 0) i = tp.findIndex(([ct, cp]) => ct === t && cp === p);
+  // Python's `\w` on str is Unicode letters, numbers and "_"; JS `\w` is
+  // ASCII-only, so spell the class out. Length is in code points, like len().
+  if (i < 0 && [...t].length >= 6) {
+    const W = "[\\p{L}\\p{N}_]";
+    const re = new RegExp(`(?<!${W})${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!${W})`, "u");
+    i = tp.findIndex(([ct, cp]) => cp === p && re.test(ct));
+  }
+  return i;
+}
 
+function formatAnswerWithCitations(text, retrieved) {
   let safe = escapeHtml(text);
 
-  // Bracketed or parenthesized tags; both map to the canonical bracket form
-  // the API returns in `citations` (see rag/guards/citation_checker.py).
-  const canonical = (title, page, section) => `[Paper: ${title.trim()} | p.${page.trim()} | §${section.trim()}]`;
+  // Bracketed or parenthesized tags. The pill number is the rank of the
+  // retrieved chunk the tag matches, so it lines up with the source cards.
   safe = safe.replace(/[\[(]Paper:\s*([^|\])]+?)\s*\|\s*p\.([\d-]+)\s*\|\s*§([\w-]+)\s*[\])]/g, (match, title, page, section) => {
-    const idx = citeMap.get(canonical(title, page, section)) ?? citeMap.get(match);
-    if (idx !== undefined) {
-      return `<span class="cite" onclick="focusSource(${idx-1})" title="${escapeHtml(match)}">${idx}</span>`;
+    const unescape = s => s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    const idx = matchChunkIndex(retrieved, unescape(title), page, unescape(section));
+    if (idx >= 0) {
+      return `<span class="cite" onclick="focusSource(${idx})" title="${match}">${idx + 1}</span>`;
     }
-    return `<span class="cite" style="border-color:#d85a30; color:#f0997b;" title="${escapeHtml(match)} (not in retrieved set)">?</span>`;
+    return `<span class="cite" style="border-color:#d85a30; color:#f0997b;" title="${match} (not in retrieved set)">?</span>`;
   });
 
   safe = safe.replace(/\[(CLS|SEP|MASK|PAD|UNK)\]/g, '<span class="code-tag">[$1]</span>');
@@ -219,7 +240,7 @@ function renderSources(retrieved) {
     if (dense !== null) pills.push(`<span class="score-pill dense">dense ${Number(dense).toFixed(2)}</span>`);
     if (sparse !== null && sparse > 0) pills.push(`<span class="score-pill sparse">sparse ${Number(sparse).toFixed(2)}</span>`);
     pills.push(`<span class="score-pill rerank">rerank ${Number(rerank).toFixed(3)}</span>`);
-    const title = c.metadata?.paper_title || c.source || "(untitled)";
+    const title = c.paper_title || c.metadata?.paper_title || c.source || "(untitled)";
     const src = c.source || c.metadata?.source || "?";
     const page = c.page ?? c.metadata?.page ?? "?";
     const section = c.section ?? c.metadata?.section ?? "?";

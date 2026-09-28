@@ -25,6 +25,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from rag.text_normalization import nfkc
+
 # Accepted citation formats (anything else is not a citation):
 #   [Paper: TITLE | p.NUM | §SECTION]   canonical, requested by the prompt
 #   (Paper: TITLE | p.NUM | §SECTION)   same fields in parentheses; models
@@ -88,8 +90,12 @@ def extract_citation_tags(text: str) -> list[str]:
 
 
 def _normalize_tag(tag: str) -> str:
-    """Lower-case + collapse whitespace for fuzzy comparison."""
-    return re.sub(r"\s+", " ", tag.strip().lower())
+    """NFKC + lower-case + collapse whitespace for comparison.
+
+    NFKC folds PDF ligatures ("Eﬀects" → "Effects") on both sides, so a
+    model that retypes a ligature title still matches the supplied tag.
+    """
+    return re.sub(r"\s+", " ", nfkc(tag).strip().lower())
 
 
 # A shortened cited title must be at least this long to be matched as a
@@ -99,7 +105,12 @@ MIN_SHORT_TITLE_CHARS = 6
 
 
 def _short_title_matches(cited_title: str, allowed_title: str) -> bool:
-    """True if `cited_title` is a whole-word substring of `allowed_title`."""
+    """True if `cited_title` is a whole-word substring of `allowed_title`.
+
+    Both arguments are already normalized, so the length floor applies to
+    the compared form (a 3-character "ﬁﬁﬁ" counts as the 6 characters of
+    "fififi" and must still be a whole word of a title on the cited page).
+    """
     if len(cited_title) < MIN_SHORT_TITLE_CHARS:
         return False
     return re.search(rf"(?<!\w){re.escape(cited_title)}(?!\w)", allowed_title) is not None
@@ -129,7 +140,7 @@ def validate_citations_against_context(
     for t in allowed_tags:
         m = _CITATION_RE.search(t)
         if m:
-            title_lower = m.group("title").strip().lower()
+            title_lower = _normalize_tag(m.group("title"))
             page = m.group("page").strip()
             allowed_prefix.add((title_lower, page))
             allowed_titles_by_page.setdefault(page, []).append(title_lower)
@@ -142,7 +153,7 @@ def validate_citations_against_context(
             continue
         m = _CITATION_RE.search(c)
         if m:
-            cited_title = m.group("title").strip().lower()
+            cited_title = _normalize_tag(m.group("title"))
             cited_page = m.group("page").strip()
             if (cited_title, cited_page) in allowed_prefix:
                 n_valid += 1
@@ -187,6 +198,9 @@ class AnswerOutcome:
     # Set by the chain before generation, not by this function:
     NO_CONTEXT = "no_context"
     LOW_RERANK_SCORE = "low_rerank_score"
+    # A retrieval stage (dense, sparse or rerank) raised or returned
+    # non-finite output. No answer is generated from the degraded evidence.
+    RETRIEVAL_FAILED = "retrieval_failed"
 
     WITHHELD_BY_GUARD = frozenset({MIXED_ABSTENTION, UNCITED_ANSWER, INVALID_CITATION})
 

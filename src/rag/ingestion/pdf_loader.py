@@ -19,6 +19,7 @@ from pathlib import Path
 import fitz  # PyMuPDF
 
 from rag.logging_config import get_logger
+from rag.text_normalization import nfkc
 
 logger = get_logger(__name__)
 
@@ -130,7 +131,7 @@ def load_pdf(path: Path) -> LoadedDocument:
     current_section = "other"
 
     with fitz.open(path) as doc:
-        title = _extract_title(doc, fallback=path.stem)
+        title = nfkc(_extract_title(doc, fallback=path.stem))
         metadata = {
             "author": (doc.metadata or {}).get("author", ""),
             "subject": (doc.metadata or {}).get("subject", ""),

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 506 290" width="506" height="290" role="img" aria-label="Scholar RAG pipeline: 15 PDFs are embedded with BGE-M3 into Qdrant. A question goes through hybrid search, the reranker and Qwen2.5:7b; the citation check releases the answer or withholds it.">
+  <defs>
+    <marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#818b98"/></marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 19px; font-weight: 600; fill: #1f2328; text-anchor: middle; }
+      path { fill: none; stroke: #818b98; stroke-width: 1.6; }
+      marker path { fill: #818b98; stroke: none; }
+    </style>
+  </defs>
+  <rect x="2" y="2" width="154" height="46" rx="9" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1.5"/>
+  <text x="79.0" y="31.6">15 PDFs</text>
+  <rect x="176" y="2" width="154" height="46" rx="9" fill="#fbefff" stroke="#c297ff" stroke-width="1.5"/>
+  <text x="253.0" y="31.6">BGE-M3</text>
+  <rect x="350" y="2" width="154" height="46" rx="9" fill="#ddf4ff" stroke="#54aeff" stroke-width="1.5"/>
+  <text x="427.0" y="31.6">Qdrant</text>
+  <path d="M156 25.0 H174" marker-end="url(#h)"/>
+  <path d="M330 25.0 H348" marker-end="url(#h)"/>
+  <rect x="176" y="82" width="154" height="46" rx="9" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1.5"/>
+  <text x="253.0" y="111.7">Question</text>
+  <rect x="350" y="82" width="154" height="46" rx="9" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1.5"/>
+  <text x="427.0" y="111.7">Hybrid search</text>
+  <path d="M427.0 48 V80" marker-end="url(#h)"/>
+  <path d="M330 105.0 H348" marker-end="url(#h)"/>
+  <rect x="2" y="162" width="154" height="46" rx="9" fill="#fbefff" stroke="#c297ff" stroke-width="1.5"/>
+  <text x="79.0" y="191.7">Reranker</text>
+  <rect x="176" y="162" width="154" height="46" rx="9" fill="#fbefff" stroke="#c297ff" stroke-width="1.5"/>
+  <text x="253.0" y="191.7">Qwen2.5:7b</text>
+  <rect x="350" y="162" width="154" height="46" rx="9" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1.5"/>
+  <text x="427.0" y="191.7">Citation check</text>
+  <path d="M427.0 128 V145.0 H79.0 V160" marker-end="url(#h)"/>
+  <path d="M156 185.0 H174" marker-end="url(#h)"/>
+  <path d="M330 185.0 H348" marker-end="url(#h)"/>
+  <rect x="176" y="242" width="154" height="46" rx="9" fill="#dafbe1" stroke="#4ac26b" stroke-width="1.5"/>
+  <text x="253.0" y="271.6">Released</text>
+  <rect x="350" y="242" width="154" height="46" rx="9" fill="#fff8c5" stroke="#d4a72c" stroke-width="1.5"/>
+  <text x="427.0" y="271.6">Withheld</text>
+  <path d="M427.0 208 V240" marker-end="url(#h)"/>
+  <path d="M397.0 208 V225.0 H253.0 V240" marker-end="url(#h)"/>
+</svg>

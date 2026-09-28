@@ -37,6 +37,8 @@ def mock_app_state() -> AppState:
     response_obj.prompt_version = "rag_answer@1.2"
     response_obj.config_summary = {"use_reranker": True}
     response_obj.outcome = "answered"
+    response_obj.outcome_detail = ""
+    response_obj.retrieval_mode = "hybrid"
     response_obj.top_rerank_score = 0.9
     response_obj.raw_answer = "mocked answer [Paper: BGE-M3 | p.1 | §abstract]"
     response_obj.to_dict.return_value = {
@@ -123,6 +125,7 @@ class TestQuery:
         assert body["abstained"] is False
         assert body["citation_check"]["all_valid"]
         assert body["prompt_version"] == "rag_answer@1.2"
+        assert body["outcome_detail"] is None
 
     def test_query_rejects_empty(self, client: TestClient) -> None:
         r = client.post("/query", json={"question": ""})

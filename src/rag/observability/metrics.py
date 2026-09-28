@@ -75,7 +75,9 @@ INGEST_CHUNKS = Counter(
 
 def record_response(response_dict: dict) -> None:
     """Update metrics from a serialized RAGResponse."""
-    if response_dict.get("abstained"):
+    if response_dict.get("outcome") == "retrieval_failed":
+        QUERY_TOTAL.labels(status="error").inc()
+    elif response_dict.get("abstained"):
         QUERY_TOTAL.labels(status="abstained").inc()
     else:
         QUERY_TOTAL.labels(status="ok").inc()

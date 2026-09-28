@@ -16,7 +16,39 @@ Ask a question about 15 ML research papers. Scholar RAG retrieves evidence with 
 
 ---
 
+## Demo
 
+Captured from the running web UI on the current code and the 1,278-chunk index, with Qwen2.5:7b as the generator. Questions are from [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl).
+
+**Single-paper answer.** Question D04. The answer cites *Conformalized Quantile Regression*, p.1, §abstract, and the badge reports 1/1 citation tags matching retrieved passages. The right panel lists the five reranked chunks with their dense, sparse and rerank scores; the left panel shows the index status.
+
+![Released single-paper answer with citation pills and sources panel](docs/images/demo-answer.png)
+
+**Answer citing two papers.** Question H14. The answer cites *Neural Collaborative Filtering* (pills 1, 2 and 3) and *BPR: Bayesian Personalized Ranking from Implicit Feedback* (pill 5), and the badge reports 4/4 citation tags matching retrieved passages.
+
+![Answer citing two papers, with both papers in the sources panel](docs/images/demo-cross-paper.png)
+
+**Citation pill → source chunk.** A crop of the same answer after clicking a BPR pill (5). Source card 5 (BPR, p.2, §related_work) is now the selected card, showing its chunk text and its dense (0.59), sparse (0.28) and rerank (0.163) scores; in the screenshot above, card 1 was selected.
+
+![After clicking a BPR citation pill, source card 5 is selected and shows its text and scores](docs/images/demo-citation-source.png)
+
+---
+
+## How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+  <img alt="Pipeline: 15 PDFs are chunked and embedded with BGE-M3 into Qdrant (1,278 chunks). A question goes through hybrid dense and sparse search with RRF, cross-encoder reranking to the top 5, and Qwen2.5:7b; the citation check releases the answer or withholds it." src="docs/images/architecture-light.svg" width="506">
+</picture>
+
+1. **Ingestion.** The 15 PDFs are split into section-aware chunks, figure debris is dropped, and BGE-M3 embeds each chunk as a dense and a sparse vector in one pass. Qdrant stores 1,278 chunks, each with paper title, page and section.
+2. **Retrieval.** Dense and sparse search each return 30 candidates. Reciprocal Rank Fusion (k=60) keeps 20, and the bge-reranker-v2-m3 cross-encoder picks the top 5.
+3. **Generation.** Qwen2.5:7b answers from those five chunks and is asked to put a `[Paper: TITLE | p.N | §SECTION]` tag after each claim.
+4. **Release.** The answer is shown only if it has at least one tag and every tag matches a supplied chunk. Otherwise the API returns the abstention sentence with an `outcome` saying why.
+
+Diagrams, the request lifecycle and the full outcome table are in [docs/architecture.md](docs/architecture.md).
+
+---
 
 ## Key engineering decisions
 

@@ -16,15 +16,21 @@ for ablation studies — defaults to 1.0 each (standard RRF).
 
 from __future__ import annotations
 
+import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from rag.config import RetrievalSettings, get_settings
 from rag.logging_config import get_logger
 from rag.retrieval.dense_retriever import DenseRetriever
 from rag.retrieval.sparse_retriever import SparseRetriever
-from rag.retrieval.types import RetrievedChunk
+from rag.retrieval.types import EmptySparseQuery, RetrievalFailure, RetrievedChunk
 
 logger = get_logger(__name__)
+
+RETRIEVAL_MODE_HYBRID = "hybrid"
+# Sparse encoding was valid but had no positive weights; dense leg only.
+RETRIEVAL_MODE_DENSE_ONLY = "dense_only"
 
 
 @dataclass
@@ -65,17 +71,52 @@ class HybridRetriever:
         self.config = config or HybridRetrievalConfig.from_settings()
 
     def retrieve(self, query: str, top_k: int | None = None) -> list[RetrievedChunk]:
-        """Run dense + sparse retrieval and fuse via RRF.
+        """Run dense + sparse retrieval and fuse via RRF (see `retrieve_with_mode`)."""
+        return self.retrieve_with_mode(query, top_k)[0]
+
+    def retrieve_with_mode(
+        self, query: str, top_k: int | None = None
+    ) -> tuple[list[RetrievedChunk], str]:
+        """Run dense + sparse retrieval, fuse via RRF, and report the mode used.
 
         Args:
             query: User query.
             top_k: Override the configured final_top_k.
+
+        Returns:
+            (chunks, mode). `mode` is RETRIEVAL_MODE_HYBRID, or
+            RETRIEVAL_MODE_DENSE_ONLY when the query's sparse encoding was
+            valid but empty, so only the dense leg could search.
+
+        Raises:
+            RetrievalFailure: an enabled leg raised, returned a non-finite
+                score, or returned nothing while the other leg returned hits.
+                Fusing the surviving leg would look like a normal result.
         """
         cfg = self.config
         final_top_k = top_k if top_k is not None else cfg.final_top_k
+        mode = RETRIEVAL_MODE_HYBRID
 
-        dense_hits = self.dense.retrieve(query, top_k=cfg.dense_top_k) if cfg.use_dense else []
-        sparse_hits = self.sparse.retrieve(query, top_k=cfg.sparse_top_k) if cfg.use_sparse else []
+        dense_hits = (
+            self._run_leg("dense", self.dense.retrieve, query, cfg.dense_top_k)
+            if cfg.use_dense else []
+        )
+        sparse_hits: list[RetrievedChunk] = []
+        if cfg.use_sparse:
+            try:
+                sparse_hits = self._run_leg("sparse", self.sparse.retrieve, query, cfg.sparse_top_k)
+            except EmptySparseQuery:
+                logger.warning("sparse_query_empty_dense_only", query=query[:80])
+                mode = RETRIEVAL_MODE_DENSE_ONLY
+        if (
+            mode == RETRIEVAL_MODE_HYBRID
+            and cfg.use_dense
+            and cfg.use_sparse
+            and bool(dense_hits) != bool(sparse_hits)
+        ):
+            empty = "dense" if not dense_hits else "sparse"
+            logger.error("retrieval_leg_empty", leg=empty, query=query[:80])
+            raise RetrievalFailure(empty, "returned no hits while the other leg did")
 
         fused = self._rrf_fuse(
             dense_hits=dense_hits,
@@ -91,8 +132,30 @@ class HybridRetriever:
             sparse_hits=len(sparse_hits),
             fused=len(fused),
             returned=len(result),
+            mode=mode,
         )
-        return result
+        return result, mode
+
+    @staticmethod
+    def _run_leg(
+        leg: str,
+        fn: Callable[..., list[RetrievedChunk]],
+        query: str,
+        top_k: int,
+    ) -> list[RetrievedChunk]:
+        """Run one retrieval leg; raise RetrievalFailure instead of degrading."""
+        try:
+            hits = fn(query, top_k=top_k)
+        except EmptySparseQuery:
+            raise  # valid empty encoding: the caller records dense-only mode
+        except Exception as e:
+            logger.error("retrieval_leg_failed", leg=leg, error=f"{type(e).__name__}: {e}")
+            raise RetrievalFailure(leg, f"{type(e).__name__}: {e}") from e
+        n_bad = sum(1 for h in hits if not math.isfinite(h.score))
+        if n_bad:
+            logger.error("retrieval_leg_nonfinite", leg=leg, n_bad=n_bad)
+            raise RetrievalFailure(leg, f"{n_bad} non-finite scores")
+        return hits
 
     @staticmethod
     def _rrf_fuse(
@@ -159,4 +222,9 @@ class HybridRetriever:
         return fused_list
 
 
-__all__ = ["HybridRetrievalConfig", "HybridRetriever"]
+__all__ = [
+    "RETRIEVAL_MODE_DENSE_ONLY",
+    "RETRIEVAL_MODE_HYBRID",
+    "HybridRetrievalConfig",
+    "HybridRetriever",
+]

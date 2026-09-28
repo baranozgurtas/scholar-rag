@@ -89,8 +89,17 @@ class QueryResponse(BaseModel):
         default="answered",
         description=(
             "answered | model_abstained | mixed_abstention | uncited_answer | "
-            "invalid_citation | generation_error | no_context | low_rerank_score"
+            "invalid_citation | generation_error | no_context | low_rerank_score | "
+            "retrieval_failed"
         ),
+    )
+    outcome_detail: str | None = Field(
+        default=None,
+        description="For retrieval_failed: the failed stage and reason, e.g. 'dense: ...'.",
+    )
+    retrieval_mode: str = Field(
+        default="hybrid",
+        description="hybrid | dense_only (the query's sparse encoding had no positive weights).",
     )
     top_rerank_score: float | None = None
     raw_answer: str | None = Field(
