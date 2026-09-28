@@ -18,7 +18,7 @@ from FlagEmbedding import FlagReranker
 
 from rag.config import EmbeddingSettings, get_settings
 from rag.logging_config import get_logger
-from rag.retrieval.types import RetrievedChunk
+from rag.retrieval.types import ModelOutputError, RetrievedChunk
 
 logger = get_logger(__name__)
 
@@ -37,11 +37,12 @@ class CrossEncoderReranker:
             batch_size=s.reranker_batch_size,
         )
         use_fp16 = device in {"cuda", "mps"}
-        # FlagReranker accepts a device string; falls back to CPU if unsupported.
+        # FlagEmbedding >= 1.3 reads `devices`; a `device=` keyword is swallowed
+        # by **kwargs and the model silently auto-selects cuda/mps instead.
         self._reranker = FlagReranker(
             s.reranker_model,
             use_fp16=use_fp16,
-            device=device,
+            devices=device,
         )
         self._device = device
 
@@ -83,6 +84,8 @@ class CrossEncoderReranker:
         if isinstance(scores, float):
             scores = [scores]
         scores = np.asarray(scores, dtype=float)
+        if not np.isfinite(scores).all():
+            raise ModelOutputError("reranker returned NaN/inf scores")
 
         # Update each candidate's score & breakdown
         for c, s in zip(candidates, scores, strict=True):

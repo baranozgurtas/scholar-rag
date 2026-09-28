@@ -16,13 +16,15 @@ for ablation studies — defaults to 1.0 each (standard RRF).
 
 from __future__ import annotations
 
+import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from rag.config import RetrievalSettings, get_settings
 from rag.logging_config import get_logger
 from rag.retrieval.dense_retriever import DenseRetriever
 from rag.retrieval.sparse_retriever import SparseRetriever
-from rag.retrieval.types import RetrievedChunk
+from rag.retrieval.types import RetrievalFailure, RetrievedChunk
 
 logger = get_logger(__name__)
 
@@ -70,12 +72,27 @@ class HybridRetriever:
         Args:
             query: User query.
             top_k: Override the configured final_top_k.
+
+        Raises:
+            RetrievalFailure: an enabled leg raised, returned a non-finite
+                score, or returned nothing while the other leg returned hits.
+                Fusing the surviving leg would look like a normal result.
         """
         cfg = self.config
         final_top_k = top_k if top_k is not None else cfg.final_top_k
 
-        dense_hits = self.dense.retrieve(query, top_k=cfg.dense_top_k) if cfg.use_dense else []
-        sparse_hits = self.sparse.retrieve(query, top_k=cfg.sparse_top_k) if cfg.use_sparse else []
+        dense_hits = (
+            self._run_leg("dense", self.dense.retrieve, query, cfg.dense_top_k)
+            if cfg.use_dense else []
+        )
+        sparse_hits = (
+            self._run_leg("sparse", self.sparse.retrieve, query, cfg.sparse_top_k)
+            if cfg.use_sparse else []
+        )
+        if cfg.use_dense and cfg.use_sparse and bool(dense_hits) != bool(sparse_hits):
+            empty = "dense" if not dense_hits else "sparse"
+            logger.error("retrieval_leg_empty", leg=empty, query=query[:80])
+            raise RetrievalFailure(empty, "returned no hits while the other leg did")
 
         fused = self._rrf_fuse(
             dense_hits=dense_hits,
@@ -93,6 +110,25 @@ class HybridRetriever:
             returned=len(result),
         )
         return result
+
+    @staticmethod
+    def _run_leg(
+        leg: str,
+        fn: Callable[..., list[RetrievedChunk]],
+        query: str,
+        top_k: int,
+    ) -> list[RetrievedChunk]:
+        """Run one retrieval leg; raise RetrievalFailure instead of degrading."""
+        try:
+            hits = fn(query, top_k=top_k)
+        except Exception as e:
+            logger.error("retrieval_leg_failed", leg=leg, error=f"{type(e).__name__}: {e}")
+            raise RetrievalFailure(leg, f"{type(e).__name__}: {e}") from e
+        n_bad = sum(1 for h in hits if not math.isfinite(h.score))
+        if n_bad:
+            logger.error("retrieval_leg_nonfinite", leg=leg, n_bad=n_bad)
+            raise RetrievalFailure(leg, f"{n_bad} non-finite scores")
+        return hits
 
     @staticmethod
     def _rrf_fuse(

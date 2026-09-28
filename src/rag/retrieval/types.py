@@ -13,6 +13,29 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from rag.text_normalization import nfkc
+
+
+class ModelOutputError(ValueError):
+    """An embedding or reranker forward pass returned non-finite or empty output.
+
+    Raised instead of passing the values on: a NaN lexical weight or query
+    vector would otherwise silently empty or scramble a retrieval leg.
+    """
+
+
+class RetrievalFailure(RuntimeError):
+    """A retrieval stage (dense, sparse or rerank) produced no usable result.
+
+    The chain turns this into an explicit `retrieval_failed` outcome instead
+    of answering from the remaining, degraded evidence.
+    """
+
+    def __init__(self, stage: str, reason: str) -> None:
+        super().__init__(f"{stage}: {reason}")
+        self.stage = stage
+        self.reason = reason
+
 
 @dataclass
 class RetrievedChunk:
@@ -38,7 +61,9 @@ class RetrievedChunk:
 
     @property
     def paper_title(self) -> str:
-        return self.metadata.get("paper_title", self.source)
+        # NFKC so tags shown to the model and the UI use plain "ff", not "ﬀ",
+        # even for chunks indexed before ingestion normalized titles.
+        return nfkc(self.metadata.get("paper_title", self.source))
 
     def to_citation_tag(self) -> str:
         """Render citation tag used inside LLM prompts.
@@ -74,4 +99,4 @@ class RetrievedChunk:
         )
 
 
-__all__ = ["RetrievedChunk"]
+__all__ = ["ModelOutputError", "RetrievalFailure", "RetrievedChunk"]

@@ -18,21 +18,19 @@ Ask a question about 15 ML research papers. Scholar RAG retrieves evidence with 
 
 ## Demo
 
-Captured from the running web UI on the current code and the 1,278-chunk index, with Qwen2.5:7b as the generator. Questions are from [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl). Latencies were recorded on an 8 GB laptop under memory pressure and are slower than the evaluation run.
+Captured from the running web UI on the current code and the 1,278-chunk index, with Qwen2.5:7b as the generator. Questions are from [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl).
 
-**Answer released with a valid citation.** Question D04. The answer cites *Conformalized Quantile Regression*, p.1, §abstract, and the badge reports 1/1 citation tags matching retrieved passages. The right panel lists the five reranked chunks; the left panel shows the index status.
+**Single-paper answer.** Question D04. The answer cites *Conformalized Quantile Regression*, p.1, §abstract, and the badge reports 1/1 citation tags matching retrieved passages. The right panel lists the five reranked chunks with their dense, sparse and rerank scores; the left panel shows the index status.
 
-![Released single-paper answer with citation pill and sources panel](docs/images/demo-answer.png)
+![Released single-paper answer with citation pills and sources panel](docs/images/demo-answer.png)
 
-**Citation pill → source chunk.** The same answer after clicking pill 1: source card 1 (p.1, §abstract) is selected, with its text and its dense (0.64), sparse (0.29) and rerank (0.990) scores. Cards 3 and 5 share that page and section, and a tag cannot tell them apart, so the pill opens the highest-ranked match.
+**Cross-paper answer.** Question H14. The answer cites both *Neural Collaborative Filtering* (pills 1, 2 and 3) and *BPR: Bayesian Personalized Ranking from Implicit Feedback* (pill 5), and all 4 citation tags match retrieved passages.
 
-![Citation pill selecting the matching source chunk with its scores](docs/images/demo-citation-source.png)
+![Answer citing two papers, with both papers in the sources panel](docs/images/demo-cross-paper.png)
 
-**Withheld by the citation policy, not refused by the model.** Question D07. The model's output contained a citation tag that matched no supplied passage, so the policy withheld it (`invalid_citation`) and showed the abstention sentence instead. The tag differed from the indexed title only by the "ﬀ" ligature in *Eﬀects using Random Forests*, a fragment left by PDF title extraction.
+**Citation pill → source chunk.** The same answer after clicking a BPR pill: the selection moves from card 1 to card 5 (BPR, p.2, §related_work), which shows the chunk text and its dense (0.59), sparse (0.28) and rerank (0.163) scores.
 
-![Answer withheld by the citation policy with the outcome reason shown](docs/images/demo-withheld.png)
-
-A cross-paper example (H14, BPR vs NCF) is not shown: on the 8 GB capture machine, memory pressure corrupted retrieval for that query, so its result was not representative of the pipeline.
+![Clicking citation pill 5 selects source card 5 with its text and scores](docs/images/demo-citation-source.png)
 
 ---
 

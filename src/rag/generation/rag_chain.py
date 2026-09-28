@@ -8,6 +8,9 @@ harness. It exposes one method:
 with full structured output (answer, citations, retrieved chunks, latencies,
 prompt version, abstention flag and the reason for it).
 
+A retrieval stage that raises or returns non-finite output ends the request
+with `retrieval_failed` before generation; no chunks are returned.
+
 Abstention can happen at three points:
 1. No candidates survive retrieval                  → `no_context`
 2. Top reranker score < RETRIEVAL_RERANK_SCORE_THRESHOLD (a gate on the
@@ -38,7 +41,7 @@ from rag.guards.citation_checker import (
     apply_answer_policy,
 )
 from rag.logging_config import get_logger
-from rag.retrieval.types import RetrievedChunk
+from rag.retrieval.types import RetrievalFailure, RetrievedChunk
 
 if TYPE_CHECKING:  # heavy imports (torch, FlagEmbedding) only for type hints
     from rag.retrieval.hybrid_retriever import HybridRetriever
@@ -72,6 +75,8 @@ class RAGResponse:
     top_rerank_score: float | None = None
     # Sources of the top-RANKING_DEPTH ranked chunks, for retrieval metrics.
     ranked_sources: list[str] = field(default_factory=list)
+    # Which stage failed and why, for `retrieval_failed` ("" otherwise).
+    outcome_detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -188,7 +193,10 @@ class RAGChain:
         # 1) Hybrid retrieval
         t_retr = time.perf_counter()
         hybrid_top_k = self.retrieval_settings.hybrid_top_k
-        candidates = self.hybrid.retrieve(question, top_k=hybrid_top_k)
+        try:
+            candidates = self.hybrid.retrieve(question, top_k=hybrid_top_k)
+        except RetrievalFailure as e:
+            return self._build_failure_response(question, timings, t0, e)
         timings["retrieval_ms"] = (time.perf_counter() - t_retr) * 1000
 
         # 2) Rerank (optional). Rank deeper than final_top_k so retrieval
@@ -197,7 +205,11 @@ class RAGChain:
         depth = max(final_top_k, RANKING_DEPTH)
         top_rerank_score: float | None = None
         if self.use_reranker and self.reranker is not None and candidates:
-            ranked = self.reranker.rerank(query=question, candidates=candidates, top_k=depth)
+            try:
+                ranked = self.reranker.rerank(query=question, candidates=candidates, top_k=depth)
+            except Exception as e:
+                failure = RetrievalFailure("rerank", f"{type(e).__name__}: {e}")
+                return self._build_failure_response(question, timings, t0, failure)
             top_rerank_score = ranked[0].score if ranked else None
         else:
             ranked = candidates[:depth]
@@ -280,6 +292,21 @@ class RAGChain:
             top_rerank_score=top_rerank_score,
             ranked_sources=ranked_sources,
         )
+
+    def _build_failure_response(
+        self,
+        question: str,
+        timings: dict[str, float],
+        t0: float,
+        failure: RetrievalFailure,
+    ) -> RAGResponse:
+        """No answer and no chunks: the evidence from a broken stage is not shown."""
+        logger.error("retrieval_failed", stage=failure.stage, reason=failure.reason)
+        response = self._build_abstention_response(
+            question, timings, t0, [], AnswerOutcome.RETRIEVAL_FAILED, None, []
+        )
+        response.outcome_detail = str(failure)
+        return response
 
     @staticmethod
     def _chunk_to_dict(c: RetrievedChunk, debug: bool = False) -> dict[str, Any]:

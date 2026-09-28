@@ -28,6 +28,8 @@ from FlagEmbedding import BGEM3FlagModel
 from langchain_core.embeddings import Embeddings
 
 from rag.config import EmbeddingSettings, get_settings
+from rag.embeddings.output_checks import check_dense as _check_dense
+from rag.embeddings.output_checks import to_sparse as _to_sparse
 from rag.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -59,10 +61,12 @@ class BGEEmbedder(Embeddings):
         )
         # use_fp16=True on MPS/CUDA halves memory; on CPU we keep fp32.
         use_fp16 = device in {"cuda", "mps"}
+        # FlagEmbedding >= 1.3 reads `devices`; a `device=` keyword is swallowed
+        # by **kwargs and the model silently auto-selects cuda/mps instead.
         self._model = BGEM3FlagModel(
             s.model_name,
             use_fp16=use_fp16,
-            device=device,
+            devices=device,
         )
         self._device = device
 
@@ -96,7 +100,8 @@ class BGEEmbedder(Embeddings):
             return_sparse=False,
             return_colbert_vecs=False,
         )
-        vec = out["dense_vecs"][0]
+        vec = np.asarray(out["dense_vecs"][0])
+        _check_dense(vec[None, :])
         if self.settings.normalize:
             vec = vec / (np.linalg.norm(vec) + 1e-12)
         return vec.tolist()
@@ -124,15 +129,13 @@ class BGEEmbedder(Embeddings):
             out = self._encode_with_cache(texts, return_sparse=True)
 
         dense = np.asarray(out["dense_vecs"])
+        _check_dense(dense)
         if self.settings.normalize:
             norms = np.linalg.norm(dense, axis=1, keepdims=True) + 1e-12
             dense = dense / norms
 
         sparse_raw = out["lexical_weights"]  # list of dict[str_token_id, float]
-        sparse: list[dict[int, float]] = []
-        for d in sparse_raw:
-            sparse.append({int(k): float(v) for k, v in d.items() if float(v) > 0})
-        return dense, sparse
+        return dense, [_to_sparse(d) for d in sparse_raw]
 
     # ─── Caching helpers ──────────────────────────────────────────
     def _cache_enabled(self) -> bool:
@@ -197,6 +200,7 @@ class BGEEmbedder(Embeddings):
                 return_colbert_vecs=False,
             )
             new_dense = np.asarray(out["dense_vecs"])
+            _check_dense(new_dense)
             if self.settings.normalize:
                 norms = np.linalg.norm(new_dense, axis=1, keepdims=True) + 1e-12
                 new_dense = new_dense / norms
@@ -205,11 +209,7 @@ class BGEEmbedder(Embeddings):
                 dense_out[orig_i] = new_dense[j]
                 cache.set(self._cache_key(miss_texts[j], "dense"), new_dense[j])
                 if return_sparse:
-                    sparse_dict = {
-                        int(k): float(v)
-                        for k, v in out["lexical_weights"][j].items()
-                        if float(v) > 0
-                    }
+                    sparse_dict = _to_sparse(out["lexical_weights"][j])
                     sparse_out[orig_i] = sparse_dict
                     cache.set(self._cache_key(miss_texts[j], "sparse"), sparse_dict)
 

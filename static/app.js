@@ -136,7 +136,9 @@ function renderAnswer(data, elapsed) {
   const latency = data.latency_ms?.total_ms ?? data.latency_ms?.total ?? elapsed * 1000;
   document.getElementById("head-sources").textContent = `${(data.retrieved_chunks||data.retrieved||[]).length} sources`;
   document.getElementById("head-latency").textContent = `${(latency/1000).toFixed(1)}s`;
-  document.getElementById("head-cites").textContent = isAbstain ? "abstained" : `${checkData.n_extracted} cites`;
+  const isFailure = data.outcome === "retrieval_failed";
+  document.getElementById("head-cites").textContent =
+    isFailure ? "failed" : isAbstain ? "abstained" : `${checkData.n_extracted} cites`;
 
   // Why the system did not answer. Tag checks are structural: a matching tag
   // means the cited page was in the supplied context, not that it supports the claim.
@@ -150,7 +152,9 @@ function renderAnswer(data, elapsed) {
     low_rerank_score: "abstained: top rerank score below threshold",
   };
   const abstainLabel = ABSTAIN_REASONS[data.outcome] || "abstained";
-  const validBadge = isAbstain
+  const validBadge = isFailure
+    ? `<span class="badge-bad"><i class="ti ti-alert-triangle"></i>failed: retrieval stage error (${escapeHtml(data.outcome_detail || "unknown")})</span>`
+    : isAbstain
     ? `<span class="badge-ok"><i class="ti ti-shield-check"></i>${abstainLabel}</span>`
     : (checkData.all_valid
         ? `<span class="badge-ok" title="Tags match supplied passages; this does not verify that the passages support each claim."><i class="ti ti-circle-check"></i>${checkData.n_valid}/${checkData.n_extracted} citation tags match retrieved passages</span>`
@@ -180,9 +184,10 @@ function renderAnswer(data, elapsed) {
 
 // Index of the retrieved chunk a citation tag refers to, or -1. Mirrors the
 // matching rules in rag/guards/citation_checker.py: exact tag, same title and
-// page, or a whole-word shortened title (>= 6 chars) on the same page.
+// page, or a whole-word shortened title (>= 6 chars) on the same page. Both
+// sides are NFKC-normalized there and here, so "Eﬀects" matches "Effects".
 function matchChunkIndex(retrieved, title, page, section) {
-  const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, " ");
+  const norm = s => String(s).normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
   const t = norm(title), p = String(page).trim(), s = norm(section);
   const tp = retrieved.map(c => [norm(c.paper_title ?? c.metadata?.paper_title ?? ""), String(c.page ?? c.metadata?.page)]);
   let i = retrieved.findIndex((c, k) => tp[k][0] === t && tp[k][1] === p && norm(c.section ?? c.metadata?.section ?? "") === s);

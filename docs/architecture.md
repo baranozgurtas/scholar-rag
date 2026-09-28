@@ -86,6 +86,11 @@ parentheses are accepted under identical rules. After generation,
 | Generation failed | `generation_error` | No (withheld) |
 | ≥1 tag, every tag matches a supplied passage | `answered` | Yes |
 
+Before generation, a retrieval stage (dense, sparse or rerank) that raises,
+returns non-finite scores, or returns nothing while the other leg returns hits
+ends the request with `retrieval_failed` and an `outcome_detail` naming the
+stage; no chunks are shown and the LLM is not called.
+
 The optional pre-generation gate (`RETRIEVAL_RERANK_SCORE_THRESHOLD`, off by
 default) refuses with `low_rerank_score` without calling the LLM. With
 `debug=true` the response also includes the raw model output.
