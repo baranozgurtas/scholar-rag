@@ -16,7 +16,36 @@ Ask a question about 15 ML research papers. Scholar RAG retrieves evidence with 
 
 ---
 
+## Demo
 
+Captured from the running web UI on the current code and the 1,278-chunk index, with Qwen2.5:7b as the generator. Questions are from [`eval/questions_v2_draft.jsonl`](eval/questions_v2_draft.jsonl). Latencies were recorded on an 8 GB laptop under memory pressure and are slower than the evaluation run.
+
+**Answer released with a valid citation.** Question D04. The answer cites *Conformalized Quantile Regression*, p.1, §abstract, and the badge reports 1/1 citation tags matching retrieved passages. The right panel lists the five reranked chunks; the left panel shows the index status.
+
+![Released single-paper answer with citation pill and sources panel](docs/images/demo-answer.png)
+
+**Citation pill → source chunk.** The same answer after clicking pill 1: source card 1 (p.1, §abstract) is selected, with its text and its dense (0.64), sparse (0.29) and rerank (0.990) scores. Cards 3 and 5 share that page and section, and a tag cannot tell them apart, so the pill opens the highest-ranked match.
+
+![Citation pill selecting the matching source chunk with its scores](docs/images/demo-citation-source.png)
+
+**Withheld by the citation policy, not refused by the model.** Question D07. The model's output contained a citation tag that matched no supplied passage, so the policy withheld it (`invalid_citation`) and showed the abstention sentence instead. The tag differed from the indexed title only by the "ﬀ" ligature in *Eﬀects using Random Forests*, a fragment left by PDF title extraction.
+
+![Answer withheld by the citation policy with the outcome reason shown](docs/images/demo-withheld.png)
+
+A cross-paper example (H14, BPR vs NCF) is not shown: on the 8 GB capture machine, memory pressure corrupted retrieval for that query, so its result was not representative of the pipeline.
+
+---
+
+## How it works
+
+1. **Ingestion.** The 15 PDFs are split into section-aware chunks, figure debris is dropped, and BGE-M3 embeds each chunk as a dense and a sparse vector in one pass. Qdrant stores 1,278 chunks, each with paper title, page and section.
+2. **Retrieval.** Dense and sparse search each return 30 candidates. Reciprocal Rank Fusion (k=60) keeps 20, and the bge-reranker-v2-m3 cross-encoder picks the top 5.
+3. **Generation.** Qwen2.5:7b answers from those five chunks and is asked to put a `[Paper: TITLE | p.N | §SECTION]` tag after each claim.
+4. **Release.** The answer is shown only if it has at least one tag and every tag matches a supplied chunk. Otherwise the API returns the abstention sentence with an `outcome` saying why.
+
+Diagrams, the request lifecycle and the full outcome table are in [docs/architecture.md](docs/architecture.md).
+
+---
 
 ## Key engineering decisions
 

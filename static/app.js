@@ -125,14 +125,13 @@ async function sendQuery() {
 
 function renderAnswer(data, elapsed) {
   const answerText = data.answer || "(empty)";
-  const citations = data.citations || [];
   const checkData = data.citation_check || { all_valid: false, n_extracted: 0, n_valid: 0 };
 
   const isAbstain = data.abstained === true;
   // If the system abstained, suppress citation pills inside the answer
   const html = isAbstain
     ? `<p>${escapeHtml(answerText).replace(/\[Paper:[^\]]+\]/g, "").trim()}</p>`
-    : formatAnswerWithCitations(answerText, citations);
+    : formatAnswerWithCitations(answerText, data.retrieved_chunks || data.retrieved || []);
 
   const latency = data.latency_ms?.total_ms ?? data.latency_ms?.total ?? elapsed * 1000;
   document.getElementById("head-sources").textContent = `${(data.retrieved_chunks||data.retrieved||[]).length} sources`;
@@ -179,21 +178,34 @@ function renderAnswer(data, elapsed) {
   document.getElementById("sources-badge").style.display = "block";
 }
 
-function formatAnswerWithCitations(text, allowedCitations) {
-  let citeMap = new Map();
-  allowedCitations.forEach((c, i) => citeMap.set(c, i + 1));
+// Index of the retrieved chunk a citation tag refers to, or -1. Mirrors the
+// matching rules in rag/guards/citation_checker.py: exact tag, same title and
+// page, or a whole-word shortened title (>= 6 chars) on the same page.
+function matchChunkIndex(retrieved, title, page, section) {
+  const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, " ");
+  const t = norm(title), p = String(page).trim(), s = norm(section);
+  const tp = retrieved.map(c => [norm(c.paper_title ?? c.metadata?.paper_title ?? ""), String(c.page ?? c.metadata?.page)]);
+  let i = retrieved.findIndex((c, k) => tp[k][0] === t && tp[k][1] === p && norm(c.section ?? c.metadata?.section ?? "") === s);
+  if (i < 0) i = tp.findIndex(([ct, cp]) => ct === t && cp === p);
+  if (i < 0 && t.length >= 6) {
+    const re = new RegExp(`(?<!\\w)${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\w)`);
+    i = tp.findIndex(([ct, cp]) => cp === p && re.test(ct));
+  }
+  return i;
+}
 
+function formatAnswerWithCitations(text, retrieved) {
   let safe = escapeHtml(text);
 
-  // Bracketed or parenthesized tags; both map to the canonical bracket form
-  // the API returns in `citations` (see rag/guards/citation_checker.py).
-  const canonical = (title, page, section) => `[Paper: ${title.trim()} | p.${page.trim()} | §${section.trim()}]`;
+  // Bracketed or parenthesized tags. The pill number is the rank of the
+  // retrieved chunk the tag matches, so it lines up with the source cards.
   safe = safe.replace(/[\[(]Paper:\s*([^|\])]+?)\s*\|\s*p\.([\d-]+)\s*\|\s*§([\w-]+)\s*[\])]/g, (match, title, page, section) => {
-    const idx = citeMap.get(canonical(title, page, section)) ?? citeMap.get(match);
-    if (idx !== undefined) {
-      return `<span class="cite" onclick="focusSource(${idx-1})" title="${escapeHtml(match)}">${idx}</span>`;
+    const unescape = s => s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    const idx = matchChunkIndex(retrieved, unescape(title), page, unescape(section));
+    if (idx >= 0) {
+      return `<span class="cite" onclick="focusSource(${idx})" title="${match}">${idx + 1}</span>`;
     }
-    return `<span class="cite" style="border-color:#d85a30; color:#f0997b;" title="${escapeHtml(match)} (not in retrieved set)">?</span>`;
+    return `<span class="cite" style="border-color:#d85a30; color:#f0997b;" title="${match} (not in retrieved set)">?</span>`;
   });
 
   safe = safe.replace(/\[(CLS|SEP|MASK|PAD|UNK)\]/g, '<span class="code-tag">[$1]</span>');
@@ -219,7 +231,7 @@ function renderSources(retrieved) {
     if (dense !== null) pills.push(`<span class="score-pill dense">dense ${Number(dense).toFixed(2)}</span>`);
     if (sparse !== null && sparse > 0) pills.push(`<span class="score-pill sparse">sparse ${Number(sparse).toFixed(2)}</span>`);
     pills.push(`<span class="score-pill rerank">rerank ${Number(rerank).toFixed(3)}</span>`);
-    const title = c.metadata?.paper_title || c.source || "(untitled)";
+    const title = c.paper_title || c.metadata?.paper_title || c.source || "(untitled)";
     const src = c.source || c.metadata?.source || "?";
     const page = c.page ?? c.metadata?.page ?? "?";
     const section = c.section ?? c.metadata?.section ?? "?";
